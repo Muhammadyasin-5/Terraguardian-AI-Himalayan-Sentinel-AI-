@@ -207,3 +207,21 @@ export const IconNavigation = ({ className }: { className?: string }) => (
     <polygon points="3 11 22 2 13 21 11 13 3 11" />
   </svg>
 );
+
+export const IconTectonics = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="m2 22 5-5 5 5 5-5 5 5" />
+    <path d="M12 2v13" />
+    <path d="m9 5 3-3 3 3" />
+    <path d="M5 9l-3 3 3 3" />
+    <path d="M19 9l3 3-3 3" />
+  </svg>
+);
+
+export const IconBeaker = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M4.5 3h15" />
+    <path d="M6 3v16a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V3" />
+    <path d="M6 14h12" />
+  </svg>
+);

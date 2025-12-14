@@ -5,7 +5,8 @@ import GlacierView from './components/GlacierView';
 import AvalancheView from './components/AvalancheView';
 import EcosystemView from './components/EcosystemView';
 import WeatherView from './components/WeatherView';
-import { IconMountain, IconActivity, IconAlertTriangle, IconLeaf, IconWind } from './components/Icons';
+import TectonicsView from './components/TectonicsView';
+import { IconMountain, IconActivity, IconAlertTriangle, IconLeaf, IconWind, IconLayers } from './components/Icons';
 
 const App: React.FC = () => {
   const [mode, setMode] = useState<AnalysisMode>(AnalysisMode.DASHBOARD);
@@ -17,6 +18,7 @@ const App: React.FC = () => {
       case AnalysisMode.AVALANCHE: return <AvalancheView />;
       case AnalysisMode.ECOSYSTEM: return <EcosystemView />;
       case AnalysisMode.WEATHER: return <WeatherView />;
+      case AnalysisMode.TECTONICS: return <TectonicsView />;
       default: return <Dashboard />;
     }
   };
@@ -59,6 +61,7 @@ const App: React.FC = () => {
             <div className="pt-4 pb-2 px-4 text-xs font-mono text-slate-600 uppercase tracking-widest">Analytics Modules</div>
             <NavButton target={AnalysisMode.GLACIER} icon={<IconActivity />} label="Glacier Health" />
             <NavButton target={AnalysisMode.AVALANCHE} icon={<IconAlertTriangle />} label="Avalanche Risk" />
+            <NavButton target={AnalysisMode.TECTONICS} icon={<IconLayers />} label="Plate Tectonics" />
             <NavButton target={AnalysisMode.WEATHER} icon={<IconWind />} label="Atmospheric" />
             <NavButton target={AnalysisMode.ECOSYSTEM} icon={<IconLeaf />} label="Ecosystem Model" />
           </nav>

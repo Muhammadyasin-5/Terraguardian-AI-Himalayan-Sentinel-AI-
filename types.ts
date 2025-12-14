@@ -5,7 +5,8 @@ export enum AnalysisMode {
   GLACIER = 'GLACIER',
   AVALANCHE = 'AVALANCHE',
   ECOSYSTEM = 'ECOSYSTEM',
-  WEATHER = 'WEATHER'
+  WEATHER = 'WEATHER',
+  TECTONICS = 'TECTONICS'
 }
 
 export interface MetricCardProps {
