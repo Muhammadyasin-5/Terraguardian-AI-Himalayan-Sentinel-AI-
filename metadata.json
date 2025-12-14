@@ -1,0 +1,5 @@
+{
+  "name": "Himalayan Sentinel AI",
+  "description": "A multimodal intelligence platform for climate resilience, tracking glacier health, avalanche risks, and ecosystem impacts in the Himalayan range using Gemini 3 Pro.",
+  "requestFramePermissions": []
+}
