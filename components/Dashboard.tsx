@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
-import { IconMountain, IconSnowflake, IconActivity, IconAlertTriangle, IconGlobe, IconMap, IconDownload, IconX, IconCpu, IconShare, IconPlus, IconMinus, IconLocate, IconLayers, IconSun } from './Icons';
+import { IconMountain, IconSnowflake, IconActivity, IconAlertTriangle, IconGlobe, IconMap, IconDownload, IconX, IconCpu, IconShare, IconPlus, IconMinus, IconLocate, IconLayers, IconSun, IconBeaker } from './Icons';
 import { MetricCardProps, AiResponse } from '../types';
 import AnalysisPanel from './AnalysisPanel';
 import { generateDeepThinkingInsight } from '../services/geminiService';
@@ -142,6 +142,7 @@ const LAYER_CONFIG = [
   { id: 'Topographic', icon: IconMap, label: 'Topo' },
   { id: 'Terrain', icon: IconMountain, label: 'Terr' },
   { id: 'Ridge', icon: IconMountain, label: 'Ridge' },
+  { id: 'Diagram', icon: IconBeaker, label: 'Diag' },
 ];
 
 const getRiskPinColor = (level: string) => {
@@ -714,7 +715,8 @@ const Dashboard: React.FC = () => {
                 <img 
                   src="https://upload.wikimedia.org/wikipedia/commons/e/e6/Nanga_Parbat_NASA_Earth_Observatory.jpg" 
                   className="absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ease-in-out opacity-100 z-0"
-                  alt="Nanga Parbat Satellite View: Serene height, precipitous snow pinnacles in clouds"
+                  alt="The view of Nanga Parbat mountain, Pakistan - Satellite View"
+                  title="The view of Nanga Parbat mountain, Pakistan"
                 />
 
                 {/* Satellite HUD Overlay - Only visible when Satellite is active base */}
@@ -739,7 +741,8 @@ const Dashboard: React.FC = () => {
                     <img 
                       src="https://upload.wikimedia.org/wikipedia/commons/e/e6/Nanga_Parbat_NASA_Earth_Observatory.jpg" 
                       className="absolute inset-0 w-full h-full object-cover filter grayscale invert contrast-[1.5] brightness-90"
-                      alt="Thermal Map Base"
+                      alt="The view of Nanga Parbat mountain, Pakistan - Thermal Analysis"
+                      title="The view of Nanga Parbat mountain, Pakistan"
                     />
                     <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 via-purple-800 to-orange-400 mix-blend-hard-light opacity-90"></div>
                     {/* Hotspots */}
@@ -752,7 +755,8 @@ const Dashboard: React.FC = () => {
                   src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/Nanga_Parbat_Karte_1936.jpg/1280px-Nanga_Parbat_Karte_1936.jpg" 
                   className="absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ease-in-out contrast-110 brightness-105 z-10"
                   style={{ opacity: activeLayer === 'Topographic' ? 1 : 0 }}
-                  alt="Nanga Parbat 1936 Expedition Topographic Map"
+                  alt="The view of Nanga Parbat mountain, Pakistan - Topographic Map"
+                  title="The view of Nanga Parbat mountain, Pakistan"
                 />
 
                 {/* Terrain Layer (Simulated 3D) */}
@@ -764,7 +768,8 @@ const Dashboard: React.FC = () => {
                         src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Nanga_Parbat_massif_from_space.jpg/1280px-Nanga_Parbat_massif_from_space.jpg" 
                         className="absolute inset-0 w-full h-full object-cover filter contrast-125 sepia-[0.3]"
                         style={{ opacity: terrainOpacity / 100 }}
-                        alt="Terrain Digital Elevation Model"
+                        alt="The view of Nanga Parbat mountain, Pakistan - Terrain Model"
+                        title="The view of Nanga Parbat mountain, Pakistan"
                     />
                     {/* Synthetic Mesh Overlay */}
                     <div className="absolute inset-0 opacity-30 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] mix-blend-overlay"></div>
@@ -775,7 +780,8 @@ const Dashboard: React.FC = () => {
                   src="https://picsum.photos/seed/himalaya_ridge/1600/900" 
                   className="absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ease-in-out grayscale contrast-[1.2] brightness-90 z-10"
                   style={{ opacity: activeLayer === 'Ridge' ? 1 : 0 }}
-                  alt="Ridge Map"
+                  alt="The view of Nanga Parbat mountain, Pakistan - Ridge Line"
+                  title="The view of Nanga Parbat mountain, Pakistan"
                 />
 
                 {/* Risk Layer (Independent Overlay) */}
@@ -783,7 +789,8 @@ const Dashboard: React.FC = () => {
                   src="https://picsum.photos/seed/himalaya_dark/1600/900" 
                   className="absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ease-in-out grayscale brightness-75 mix-blend-multiply z-20 pointer-events-none"
                   style={{ opacity: showRiskLayer ? riskOpacity / 100 : 0 }}
-                  alt="Risk Map"
+                  alt="The view of Nanga Parbat mountain, Pakistan - Risk Zone"
+                  title="The view of Nanga Parbat mountain, Pakistan"
                 />
 
                 {/* Dynamic Hillshade / Terrain Relief (Procedural) */}
@@ -880,6 +887,95 @@ const Dashboard: React.FC = () => {
                         </g>
                     </svg>
                 </div>
+
+                {/* SCHEMATIC DIAGRAM LAYER (New) */}
+                {activeLayer === 'Diagram' && (
+                    <div className="absolute inset-0 z-20 bg-[#1a5276] overflow-hidden transition-opacity duration-500">
+                        {/* Sky Gradient Effect */}
+                        <div className="absolute top-0 inset-x-0 h-1/2 bg-gradient-to-b from-[#1a5276] to-[#3498db] opacity-50"></div>
+                        
+                        {/* Stars */}
+                        <div className="absolute inset-0 opacity-80">
+                             {[...Array(20)].map((_, i) => (
+                                 <div 
+                                    key={i} 
+                                    className="absolute bg-white rounded-full animate-pulse"
+                                    style={{
+                                        top: `${Math.random() * 40}%`,
+                                        left: `${Math.random() * 100}%`,
+                                        width: `${Math.random() * 3 + 1}px`,
+                                        height: `${Math.random() * 3 + 1}px`,
+                                        animationDelay: `${Math.random() * 2}s`
+                                    }}
+                                 ></div>
+                             ))}
+                        </div>
+
+                        <svg className="w-full h-full relative z-10" viewBox="0 0 140 110" preserveAspectRatio="none">
+                            {/* Moon */}
+                            <circle cx="120" cy="20" r="4" fill="#f7dc6f" stroke="#f4d03f" strokeWidth="0.5" />
+                            <circle cx="119" cy="20" r="3.5" fill="#1a5276" />
+                            <text x="120" y="28" fontSize="3" fill="#f4d03f" textAnchor="middle" fontWeight="bold">7:37 PM</text>
+
+                            {/* Ground */}
+                            <rect x="0" y="50" width="140" height="60" fill="#2e4053" opacity="0.9" />
+
+                            {/* Shadow Mountain (Back) */}
+                            <polygon 
+                                points="80,90 100,50 120,40 130,50 135,70 130,90" 
+                                fill="#34495e" stroke="#2c3e50" strokeWidth="2"
+                            />
+                            <text x="105" y="70" fontSize="4" fontWeight="bold" fill="#ecf0f1" textAnchor="middle">SHADOW</text>
+
+                            {/* Main Mountain (Front) */}
+                            <polygon 
+                                points="20,90 40,30 60,20 80,25 100,50 120,90" 
+                                fill="#d5dbdb" stroke="#7f8c8d" strokeWidth="2"
+                            />
+
+                            {/* Glacier */}
+                            <polygon 
+                                points="45,60 55,40 65,30 75,35 85,55 90,70" 
+                                fill="#aed6f1" stroke="#5dade2" strokeWidth="1.5" opacity="0.85"
+                            />
+                            <text x="65" y="45" fontSize="4" fontWeight="bold" fill="#1a5276" textAnchor="middle">GLACIER</text>
+                            <text x="65" y="50" fontSize="3" fontStyle="italic" fill="#2874a6" textAnchor="middle">glaçier</text>
+
+                            {/* Summit Marker */}
+                            <path d="M 60 20 L 58 24 L 62 24 Z" fill="white" stroke="#2c3e50" strokeWidth="0.5" />
+                            <text x="60" y="15" fontSize="4" fontWeight="bold" fill="#2c3e50" textAnchor="middle">SUMMIT</text>
+                            <text x="62" y="18" fontSize="3" fontStyle="italic" fill="#7f8c8d" textAnchor="middle">sunmill</text>
+
+                            {/* Explorer Figure */}
+                            <rect x="38.5" y="80" width="1.5" height="8" fill="#1b4f72" stroke="#154360" strokeWidth="0.5" />
+                            <rect x="40" y="80" width="1.5" height="8" fill="#1b4f72" stroke="#154360" strokeWidth="0.5" />
+                            <ellipse cx="40" cy="80" rx="3" ry="8" fill="#2c3e50" stroke="#1c2833" strokeWidth="0.5" />
+                            <circle cx="40" cy="70" r="2.5" fill="#f7dc6f" stroke="#d4ac0d" strokeWidth="0.5" />
+                            <rect x="35" y="76" width="3.5" height="1.2" rx="0.5" fill="#1b4f72" stroke="#154360" strokeWidth="0.5" />
+                            <rect x="41.5" y="76" width="3.5" height="1.2" rx="0.5" fill="#1b4f72" stroke="#154360" strokeWidth="0.5" />
+                            <text x="40" y="95" fontSize="3" fontWeight="bold" fill="#ecf0f1" textAnchor="middle">EXPLORER</text>
+
+                            {/* Foreground Rocks */}
+                            {[...Array(5)].map((_, i) => (
+                                <ellipse 
+                                    key={i}
+                                    cx={20 + i * 25} 
+                                    cy={95 + (i % 2) * 2} 
+                                    rx={2 + (i%3)} 
+                                    ry={1.5} 
+                                    fill="#566573" 
+                                    stroke="#2c3e50" 
+                                    strokeWidth="0.5" 
+                                />
+                            ))}
+                        </svg>
+                        
+                        <div className="absolute top-4 left-4 bg-white/10 backdrop-blur-md p-2 rounded border border-white/20">
+                            <h4 className="text-white text-xs font-bold uppercase">Schematic View</h4>
+                            <p className="text-[10px] text-sky-200">Generated from Field Python Model</p>
+                        </div>
+                    </div>
+                )}
               </div>
             
             {/* LITHOLOGY OVERLAY (Visual Sequence) */}

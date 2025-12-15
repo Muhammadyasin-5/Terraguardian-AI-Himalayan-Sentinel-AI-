@@ -523,7 +523,7 @@ const AvalancheView: React.FC = () => {
             <img 
               src="https://picsum.photos/seed/snowmount/800/400" 
               className="w-full h-full object-cover opacity-50 mix-blend-luminosity" 
-              alt="Terrain"
+              alt="The view of Nanga Parbat mountain, Pakistan - Thermal Terrain"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-sentinel-900 to-transparent"></div>
             <div className="absolute top-1/4 left-1/4 w-24 h-24 bg-red-500/30 blur-xl rounded-full animate-pulse"></div>
@@ -797,7 +797,7 @@ const RunoutSimulationModal: React.FC<{ onClose: () => void }> = ({ onClose }) =
                 <img 
                     src="https://picsum.photos/seed/avalanche_path/1200/800" 
                     className="absolute inset-0 w-full h-full object-cover opacity-60 grayscale"
-                    alt="Terrain Path"
+                    alt="The view of Nanga Parbat mountain, Pakistan - Runout Path"
                 />
                 
                 {/* Simulation Canvas */}

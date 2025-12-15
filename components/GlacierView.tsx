@@ -418,7 +418,7 @@ const GlacierView: React.FC = () => {
         <div className="relative h-32 w-full rounded-xl overflow-hidden border border-sentinel-700 group flex-shrink-0">
           <img 
             src="https://picsum.photos/seed/glacier2/800/400" 
-            alt="Glacier Visual" 
+            alt="The view of Nanga Parbat mountain, Pakistan - Rakhiot Glacier" 
             className="w-full h-full object-cover opacity-60 group-hover:opacity-80 transition-opacity"
           />
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">

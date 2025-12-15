@@ -298,7 +298,7 @@ const EcosystemView: React.FC = () => {
                  {/* Background Terrain */}
                  <img 
                     src="https://picsum.photos/seed/snowleopard_habitat/800/400" 
-                    alt="Terrain Map" 
+                    alt="The view of Nanga Parbat mountain, Pakistan - Ecosystem Terrain"
                     className="w-full h-full object-cover opacity-40 group-hover:opacity-50 transition-opacity grayscale"
                  />
                  
