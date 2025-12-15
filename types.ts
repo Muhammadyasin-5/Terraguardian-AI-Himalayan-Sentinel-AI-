@@ -7,7 +7,8 @@ export enum AnalysisMode {
   ECOSYSTEM = 'ECOSYSTEM',
   WEATHER = 'WEATHER',
   TECTONICS = 'TECTONICS',
-  DATA_LAB = 'DATA_LAB'
+  DATA_LAB = 'DATA_LAB',
+  TERRAIN_3D = 'TERRAIN_3D'
 }
 
 export interface MetricCardProps {

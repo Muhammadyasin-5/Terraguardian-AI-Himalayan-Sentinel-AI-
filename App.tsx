@@ -7,7 +7,8 @@ import EcosystemView from './components/EcosystemView';
 import WeatherView from './components/WeatherView';
 import TectonicsView from './components/TectonicsView';
 import DataLabView from './components/DataLabView';
-import { IconMountain, IconActivity, IconAlertTriangle, IconLeaf, IconWind, IconLayers, IconCpu, IconWifi, IconWifiOff, IconLock, IconCheck, IconX } from './components/Icons';
+import TerrainView from './components/TerrainView';
+import { IconMountain, IconActivity, IconAlertTriangle, IconLeaf, IconWind, IconLayers, IconCpu, IconWifi, IconWifiOff, IconLock, IconCheck, IconX, IconCube } from './components/Icons';
 
 interface Network {
   ssid: string;
@@ -74,6 +75,7 @@ const App: React.FC = () => {
       case AnalysisMode.WEATHER: return <WeatherView />;
       case AnalysisMode.TECTONICS: return <TectonicsView />;
       case AnalysisMode.DATA_LAB: return <DataLabView />;
+      case AnalysisMode.TERRAIN_3D: return <TerrainView />;
       default: return <Dashboard />;
     }
   };
@@ -114,6 +116,7 @@ const App: React.FC = () => {
           <nav className="space-y-2">
             <NavButton target={AnalysisMode.DASHBOARD} icon={<IconMountain />} label="Overview" />
             <div className="pt-4 pb-2 px-4 text-xs font-mono text-slate-600 uppercase tracking-widest">Analytics Modules</div>
+            <NavButton target={AnalysisMode.TERRAIN_3D} icon={<IconCube />} label="3D Terrain" />
             <NavButton target={AnalysisMode.GLACIER} icon={<IconActivity />} label="Glacier Health" />
             <NavButton target={AnalysisMode.AVALANCHE} icon={<IconAlertTriangle />} label="Avalanche Risk" />
             <NavButton target={AnalysisMode.TECTONICS} icon={<IconLayers />} label="Plate Tectonics" />

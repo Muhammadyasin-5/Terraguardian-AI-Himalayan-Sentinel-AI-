@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ComposedChart, Legend, AreaChart, Area } from 'recharts';
 import AnalysisPanel from './AnalysisPanel';
 import ReactMarkdown from 'react-markdown';
 import { generateDeepThinkingInsight } from '../services/geminiService';
 import { AiResponse } from '../types';
-import { IconAlertTriangle, IconGlobe, IconCpu, IconHistory, IconX, IconMountain, IconSnowflake, IconSave, IconCheck, IconActivity } from './Icons';
+import { IconAlertTriangle, IconGlobe, IconCpu, IconHistory, IconX, IconMountain, IconSnowflake, IconSave, IconCheck, IconActivity, IconMap, IconWind } from './Icons';
 
 const riskData = [
   { zone: 'Rakhiot Face', risk: 85, lastScan: 72, depth: '2.4m', trend: 'Unstable' },
@@ -75,12 +75,20 @@ const AvalancheView: React.FC = () => {
   const [expandedLogId, setExpandedLogId] = useState<number | null>(null);
   const [historySaved, setHistorySaved] = useState(false);
 
+  // Simulation State
+  const [isCriticalRisk, setIsCriticalRisk] = useState(false);
+  const [showRunoutSim, setShowRunoutSim] = useState(false);
+
   const handleAnalysis = async () => {
     setAiState({ ...aiState, loading: true, isThinking: true });
     
-    // Check max risk to conditionally add advisory
+    // Check max risk to conditionally add advisory and enable simulation
     const currentMaxRisk = Math.max(...riskData.map(z => z.risk));
     const isHighRisk = currentMaxRisk > 50;
+    const criticalCheck = currentMaxRisk > 80;
+    
+    setIsCriticalRisk(criticalCheck);
+
     const includeAdvisory = audience === 'public' && isHighRisk;
 
     const prompt = `
@@ -299,6 +307,28 @@ const AvalancheView: React.FC = () => {
               </ResponsiveContainer>
             </div>
           </div>
+
+          {/* CRITICAL ACTION: SIMULATION TRIGGER */}
+          {isCriticalRisk && (
+              <div className="bg-red-500/10 border border-red-500/30 p-4 rounded-xl flex items-center justify-between shadow-[0_0_20px_rgba(239,68,68,0.15)] animate-in fade-in slide-in-from-top-4">
+                  <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-red-500/20 rounded-full flex items-center justify-center animate-pulse">
+                          <IconAlertTriangle className="w-6 h-6 text-red-500" />
+                      </div>
+                      <div>
+                          <h4 className="text-red-400 font-bold text-sm">CRITICAL INSTABILITY DETECTED</h4>
+                          <p className="text-slate-400 text-xs">Run physics model to determine runout zones.</p>
+                      </div>
+                  </div>
+                  <button 
+                      onClick={() => setShowRunoutSim(true)}
+                      className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-lg shadow-lg flex items-center gap-2 transition-all hover:scale-105"
+                  >
+                      <IconActivity className="w-4 h-4" />
+                      SIMULATE RUNOUT PATH
+                  </button>
+              </div>
+          )}
 
           {/* Detailed Telemetry Section */}
           <div className="bg-sentinel-800 p-6 rounded-xl border border-sentinel-700 shadow-lg flex-shrink-0">
@@ -521,6 +551,11 @@ const AvalancheView: React.FC = () => {
         </div>
       </div>
 
+      {/* Runout Simulation Modal */}
+      {showRunoutSim && (
+          <RunoutSimulationModal onClose={() => setShowRunoutSim(false)} />
+      )}
+
       {/* History Modal Overlay */}
       {showHistory && (
         <div className="absolute inset-0 z-50 bg-sentinel-900/95 backdrop-blur-md flex flex-col animate-in fade-in duration-200">
@@ -648,6 +683,183 @@ const AvalancheView: React.FC = () => {
       )}
     </div>
   );
+};
+
+// Internal Component for Runout Simulation
+const RunoutSimulationModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const [stats, setStats] = useState({ velocity: 0, pressure: 0, flowDepth: 0 });
+    const [simulating, setSimulating] = useState(false);
+    
+    // Simulation Logic
+    useEffect(() => {
+        if (!simulating || !canvasRef.current) return;
+        
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        let animationFrameId: number;
+        const particles: { x: number; y: number; vx: number; vy: number; life: number }[] = [];
+        const w = canvas.width;
+        const h = canvas.height;
+        
+        // Define a simple path (Valley Curve)
+        const pathPoints = [
+            {x: w * 0.2, y: h * 0.1},
+            {x: w * 0.6, y: h * 0.4},
+            {x: w * 0.5, y: h * 0.7},
+            {x: w * 0.8, y: h * 0.9}
+        ];
+
+        let frameCount = 0;
+
+        const render = () => {
+            ctx.clearRect(0, 0, w, h);
+            
+            // Draw Background Image
+            // In real app, draw image here. For now, transparency lets CSS image show through.
+            
+            // Draw Heatmap Overlay
+            ctx.beginPath();
+            ctx.moveTo(pathPoints[0].x, pathPoints[0].y);
+            ctx.bezierCurveTo(w*0.7, h*0.2, w*0.2, h*0.6, pathPoints[3].x, pathPoints[3].y);
+            ctx.lineTo(pathPoints[3].x - 50, pathPoints[3].y);
+            ctx.bezierCurveTo(w*0.1, h*0.6, w*0.6, h*0.2, pathPoints[0].x - 20, pathPoints[0].y);
+            ctx.fillStyle = 'rgba(239, 68, 68, 0.1)'; // Red Tint
+            ctx.fill();
+            
+            // Spawn Particles
+            if (frameCount < 300) { // Spawn for limited time
+                for(let i=0; i<5; i++) {
+                    particles.push({
+                        x: pathPoints[0].x + (Math.random() - 0.5) * 40,
+                        y: pathPoints[0].y + (Math.random() - 0.5) * 40,
+                        vx: (Math.random() * 2),
+                        vy: (Math.random() * 2) + 1,
+                        life: 1.0
+                    });
+                }
+            }
+
+            // Update & Draw Particles
+            ctx.fillStyle = '#fff';
+            for (let i = 0; i < particles.length; i++) {
+                const p = particles[i];
+                
+                // Simple Gravity & Flow Logic towards bottom right roughly
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vx += (Math.random() - 0.4) * 0.2; // Turbulence
+                p.vy += 0.05; // Gravity acceleration
+                
+                // Guidance towards path center (fake physics)
+                const targetX = w * 0.5 + (p.y / h) * (w * 0.3);
+                p.vx += (targetX - p.x) * 0.001;
+
+                p.life -= 0.005;
+                
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, Math.max(0, p.life * 3), 0, Math.PI * 2);
+                ctx.fill();
+
+                if (p.y > h || p.life <= 0) {
+                    particles.splice(i, 1);
+                    i--;
+                }
+            }
+
+            // Update Stats
+            if (frameCount % 10 === 0 && frameCount < 400) {
+                setStats({
+                    velocity: Math.floor(40 + (frameCount / 5) + Math.random() * 5),
+                    pressure: Math.floor(100 + (frameCount / 2)),
+                    flowDepth: Number((2.5 + Math.random() * 0.5).toFixed(1))
+                });
+            } else if (frameCount >= 400) {
+                 setStats({ velocity: 0, pressure: 0, flowDepth: 4.5 }); // Settled
+                 setSimulating(false);
+            }
+
+            frameCount++;
+            if (simulating) animationFrameId = requestAnimationFrame(render);
+        };
+
+        render();
+
+        return () => cancelAnimationFrame(animationFrameId);
+    }, [simulating]);
+
+    return (
+        <div className="absolute inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-6 animate-in fade-in zoom-in duration-300">
+            <div className="relative w-full max-w-5xl aspect-video bg-sentinel-900 rounded-xl overflow-hidden border border-sentinel-600 shadow-2xl">
+                {/* Background Terrain */}
+                <img 
+                    src="https://picsum.photos/seed/avalanche_path/1200/800" 
+                    className="absolute inset-0 w-full h-full object-cover opacity-60 grayscale"
+                    alt="Terrain Path"
+                />
+                
+                {/* Simulation Canvas */}
+                <canvas 
+                    ref={canvasRef} 
+                    width={1200} 
+                    height={800} 
+                    className="absolute inset-0 w-full h-full mix-blend-screen"
+                />
+
+                {/* HUD Overlay */}
+                <div className="absolute top-4 left-4 p-4 bg-sentinel-900/80 backdrop-blur-md rounded-lg border border-red-500/30 flex flex-col gap-4 min-w-[200px]">
+                    <h3 className="text-red-400 font-bold flex items-center gap-2">
+                        <IconActivity className="w-5 h-5 animate-pulse" />
+                        RUNOUT SIMULATION
+                    </h3>
+                    
+                    <div className="space-y-2">
+                        <div className="flex justify-between text-xs">
+                            <span className="text-slate-400">Velocity</span>
+                            <span className="font-mono text-white font-bold">{stats.velocity} km/h</span>
+                        </div>
+                        <div className="w-full bg-sentinel-700 h-1 rounded-full overflow-hidden">
+                            <div className="bg-orange-500 h-full transition-all duration-300" style={{ width: `${stats.velocity}%` }}></div>
+                        </div>
+
+                        <div className="flex justify-between text-xs">
+                            <span className="text-slate-400">Impact Pressure</span>
+                            <span className="font-mono text-white font-bold">{stats.pressure} kPa</span>
+                        </div>
+                        <div className="w-full bg-sentinel-700 h-1 rounded-full overflow-hidden">
+                            <div className="bg-red-500 h-full transition-all duration-300" style={{ width: `${stats.pressure / 3}%` }}></div>
+                        </div>
+
+                        <div className="flex justify-between text-xs">
+                            <span className="text-slate-400">Flow Depth</span>
+                            <span className="font-mono text-white font-bold">{stats.flowDepth} m</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Controls */}
+                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-4">
+                    {!simulating && (
+                        <button 
+                            onClick={() => setSimulating(true)}
+                            className="bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-6 rounded-full shadow-lg transition-transform hover:scale-105 flex items-center gap-2"
+                        >
+                            <IconActivity className="w-4 h-4" />
+                            START SIMULATION
+                        </button>
+                    )}
+                    <button 
+                        onClick={onClose}
+                        className="bg-sentinel-800 hover:bg-sentinel-700 text-slate-300 font-bold py-2 px-6 rounded-full border border-sentinel-600 transition-colors"
+                    >
+                        CLOSE
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
 };
 
 export default AvalancheView;
