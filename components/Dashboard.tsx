@@ -138,9 +138,9 @@ const FAULT_DATA: FaultSystem[] = [
 
 const LAYER_CONFIG = [
   { id: 'Satellite', icon: IconGlobe, label: 'Sat' },
-  { id: 'Terrain', icon: IconMountain, label: 'Terr' },
   { id: 'Thermal', icon: IconActivity, label: 'Therm' },
   { id: 'Topographic', icon: IconMap, label: 'Topo' },
+  { id: 'Terrain', icon: IconMountain, label: 'Terr' },
   { id: 'Ridge', icon: IconMountain, label: 'Ridge' },
 ];
 
@@ -690,7 +690,7 @@ const Dashboard: React.FC = () => {
 
         {/* Main Map View */}
         <div className={`flex-1 min-h-[500px] bg-sentinel-900 rounded-2xl relative overflow-hidden group select-none shadow-2xl transition-all duration-500 border cursor-grab active:cursor-grabbing ${
-          (activeLayer === 'Terrain' || activeLayer === 'Topographic') 
+          (activeLayer === 'Topographic') 
             ? 'border-indigo-500/50 shadow-[0_0_30px_rgba(99,102,241,0.15)] ring-1 ring-indigo-500/10' 
             : 'border-sentinel-700'
           }`}
@@ -730,14 +730,6 @@ const Dashboard: React.FC = () => {
                     {/* Scanning Effect */}
                     <div className="absolute inset-x-0 h-[1px] bg-sky-400/30 shadow-[0_0_10px_rgba(56,189,248,0.4)] animate-[pulse_3s_ease-in-out_infinite] top-1/2"></div>
                 </div>
-
-                {/* Terrain Layer */}
-                <img 
-                  src="https://picsum.photos/seed/himalaya_terrain_physical/1600/900" 
-                  className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ease-in-out saturate-50 contrast-[1.1] brightness-[0.85] sepia-[0.1] z-10`}
-                  style={{ opacity: activeLayer === 'Terrain' ? terrainOpacity / 100 : 0 }}
-                  alt="Terrain Map"
-                />
                 
                 {/* Thermal Layer */}
                 <div 
@@ -763,6 +755,21 @@ const Dashboard: React.FC = () => {
                   alt="Nanga Parbat 1936 Expedition Topographic Map"
                 />
 
+                {/* Terrain Layer (Simulated 3D) */}
+                <div 
+                    className="absolute inset-0 w-full h-full transition-opacity duration-700 ease-in-out z-10 bg-slate-800"
+                    style={{ opacity: activeLayer === 'Terrain' ? 1 : 0 }}
+                >
+                    <img 
+                        src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Nanga_Parbat_massif_from_space.jpg/1280px-Nanga_Parbat_massif_from_space.jpg" 
+                        className="absolute inset-0 w-full h-full object-cover filter contrast-125 sepia-[0.3]"
+                        style={{ opacity: terrainOpacity / 100 }}
+                        alt="Terrain Digital Elevation Model"
+                    />
+                    {/* Synthetic Mesh Overlay */}
+                    <div className="absolute inset-0 opacity-30 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] mix-blend-overlay"></div>
+                </div>
+
                 {/* Ridge Layer */}
                 <img 
                   src="https://picsum.photos/seed/himalaya_ridge/1600/900" 
@@ -780,7 +787,7 @@ const Dashboard: React.FC = () => {
                 />
 
                 {/* Dynamic Hillshade / Terrain Relief (Procedural) */}
-                {(activeLayer === 'Terrain' || activeLayer === 'Topographic') && (
+                {(activeLayer === 'Topographic' || activeLayer === 'Terrain') && (
                     <div 
                         className="absolute inset-0 z-20 pointer-events-none mix-blend-soft-light transition-opacity duration-700"
                         style={{ opacity: solarIntensity / 60 }} // Adjusted intensity
@@ -1065,7 +1072,7 @@ const Dashboard: React.FC = () => {
 
           {/* Solar Azimuth Indicator */}
           <div className="absolute top-4 right-4 z-30 flex flex-col items-center gap-1 transition-opacity duration-300">
-             {(activeLayer === 'Terrain' || activeLayer === 'Topographic') && (
+             {(activeLayer === 'Topographic') && (
                 <div className="bg-sentinel-900/80 backdrop-blur p-2 rounded-full border border-sentinel-700 shadow-lg animate-in fade-in zoom-in duration-300" title="Simulated Solar Azimuth">
                   <div className="relative w-10 h-10 rounded-full border border-white/10 flex items-center justify-center bg-sentinel-950/50">
                       {/* Sun Orbit */}
@@ -1118,20 +1125,19 @@ const Dashboard: React.FC = () => {
                         />
                     </div>
 
-                    {/* Terrain Opacity */}
-                    {activeLayer === 'Terrain' && (
-                        <div className="mb-4 animate-in fade-in">
-                            <div className="flex items-center justify-between mb-2">
-                                <span className="text-xs text-slate-300">Terrain Opacity</span>
-                                <span className="text-[10px] font-mono text-slate-500">{terrainOpacity}%</span>
-                            </div>
-                            <input 
-                                type="range" min="0" max="100" 
-                                value={terrainOpacity} onChange={(e) => setTerrainOpacity(Number(e.target.value))}
-                                className="w-full h-1.5 bg-sentinel-700 rounded-lg appearance-none cursor-pointer accent-sky-500 hover:accent-sky-400"
-                            />
+                    {/* Terrain Opacity (New Control) */}
+                    <div className="mb-4">
+                        <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs text-slate-300">Terrain Opacity</span>
+                            <span className="text-[10px] text-slate-500 font-mono">{terrainOpacity}%</span>
                         </div>
-                    )}
+                        <input 
+                            type="range" min="0" max="100" 
+                            disabled={activeLayer !== 'Terrain'}
+                            value={terrainOpacity} onChange={(e) => setTerrainOpacity(Number(e.target.value))}
+                            className="w-full h-1.5 bg-sentinel-700 rounded-lg appearance-none cursor-pointer accent-sky-500 hover:accent-sky-400 disabled:opacity-50"
+                        />
+                    </div>
 
                     {/* Solar Intensity */}
                     <div>

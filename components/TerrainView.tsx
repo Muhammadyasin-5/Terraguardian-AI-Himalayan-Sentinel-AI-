@@ -1,28 +1,11 @@
 import React, { useState, useMemo, useRef, Suspense } from 'react';
-import { Canvas, useFrame, useLoader } from '@react-three/fiber';
+import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Stars, Html, Cloud } from '@react-three/drei';
 import * as THREE from 'three';
 import AnalysisPanel from './AnalysisPanel';
 import { generateDeepThinkingInsight } from '../services/geminiService';
 import { AiResponse } from '../types';
-import { IconMap, IconLayers, IconSun } from './Icons';
-
-// Augment JSX.IntrinsicElements to include Three.js elements used by @react-three/fiber
-declare global {
-  namespace JSX {
-    interface IntrinsicElements {
-      group: any;
-      mesh: any;
-      planeGeometry: any;
-      meshStandardMaterial: any;
-      ambientLight: any;
-      directionalLight: any;
-      pointLight: any;
-      color: any;
-      fog: any;
-    }
-  }
-}
+import { IconMap, IconLayers } from './Icons';
 
 // --- Types ---
 interface Poi {
@@ -34,12 +17,13 @@ interface Poi {
 }
 
 // --- Constants ---
+// Adjusted positions to align with the generated heightmap terrain
 const POI_DATA: Poi[] = [
-  { id: 'summit', position: [0, 8, 0], name: 'Nanga Parbat Summit', desc: '8,126m - The "Killer Mountain"', elevation: '8126m' },
-  { id: 'raikot', position: [3, 4, 3], name: 'Raikot Face', desc: 'Active fault zone, extreme relief.', elevation: '6800m' },
-  { id: 'diamir', position: [-4, 3, -2], name: 'Diamir Base Camp', desc: 'Primary expedition staging area.', elevation: '4200m' },
-  { id: 'rupal', position: [0, 2, 5], name: 'Rupal Face', desc: 'Highest vertical wall on Earth (4600m).', elevation: '5000m' },
-  { id: 'mazeno', position: [5, 4, -4], name: 'Mazeno Ridge', desc: 'Longest ridge line on any 8000er.', elevation: '7100m' }
+  { id: 'summit', position: [0, 0, 3.5], name: 'Summit', desc: '8,126m - The "Killer Mountain"', elevation: '8126m' },
+  { id: 'raikot', position: [3, 3, 2], name: 'Raikot Face', desc: 'Active fault zone, extreme relief.', elevation: '6800m' },
+  { id: 'diamir', position: [-4, 2, 1.5], name: 'Diamir Face', desc: 'Primary expedition staging area.', elevation: '4200m' },
+  { id: 'rupal', position: [0, -5, 2.5], name: 'Rupal Face', desc: 'Highest vertical wall on Earth (4600m).', elevation: '5000m' },
+  { id: 'mazeno', position: [5, -2, 1.8], name: 'Mazeno Ridge', desc: 'Longest ridge line on any 8000er.', elevation: '7100m' }
 ];
 
 // --- Helper Functions ---
@@ -50,32 +34,39 @@ function generateHeightMapTexture(): HTMLCanvasElement {
     const ctx = canvas.getContext('2d')!;
 
     // Background (Lowlands)
-    ctx.fillStyle = '#0f172a'; 
+    ctx.fillStyle = '#020617'; 
     ctx.fillRect(0, 0, 512, 512);
 
-    // Generate procedural "mountain" noise
-    // 1. Main Peak Gradient
-    const grd = ctx.createRadialGradient(256, 256, 10, 256, 256, 250);
+    // 1. Main Peak Complex (Radial Gradient)
+    const grd = ctx.createRadialGradient(256, 256, 0, 256, 256, 300);
     grd.addColorStop(0, "rgba(255, 255, 255, 1)");
-    grd.addColorStop(0.4, "rgba(200, 200, 200, 0.6)");
+    grd.addColorStop(0.2, "rgba(180, 180, 180, 0.8)");
+    grd.addColorStop(0.5, "rgba(60, 60, 60, 0.4)");
     grd.addColorStop(1, "rgba(0, 0, 0, 0)");
     ctx.fillStyle = grd;
     ctx.fillRect(0, 0, 512, 512);
 
-    // 2. Ridges (Noise Lines)
-    ctx.lineWidth = 2;
-    for (let i = 0; i < 200; i++) {
+    // 2. Ridge Lines (White noise strokes)
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.1)";
+    ctx.lineWidth = 3;
+    for (let i = 0; i < 100; i++) {
+        ctx.beginPath();
         const x = Math.random() * 512;
         const y = Math.random() * 512;
-        // Draw lines radiating somewhat from center
-        const angle = Math.atan2(y - 256, x - 256);
-        const dist = Math.sqrt((x - 256) ** 2 + (y - 256) ** 2);
-        
-        ctx.strokeStyle = `rgba(255, 255, 255, ${Math.max(0, 0.4 - dist/400)})`;
-        ctx.beginPath();
-        ctx.moveTo(x, y);
-        ctx.lineTo(x + Math.cos(angle + (Math.random()-0.5)) * 40, y + Math.sin(angle + (Math.random()-0.5)) * 40);
+        ctx.moveTo(256, 256); // Radiate from center
+        ctx.bezierCurveTo(256 + (Math.random()-0.5)*100, 256 + (Math.random()-0.5)*100, x, y, x + (Math.random()-0.5)*50, y + (Math.random()-0.5)*50);
         ctx.stroke();
+    }
+
+    // 3. Perlin-ish Noise (Random Circles for ruggedness)
+    for (let i = 0; i < 500; i++) {
+        const x = Math.random() * 512;
+        const y = Math.random() * 512;
+        const r = Math.random() * 10;
+        ctx.fillStyle = `rgba(255, 255, 255, ${Math.random() * 0.05})`;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
     }
 
     return canvas;
@@ -90,65 +81,55 @@ const TerrainMesh: React.FC<{
     onSelectPoi: (poi: Poi) => void; 
 }> = ({ wireframe, heatmap, exaggeration, onSelectPoi }) => {
     
-    // Generate texture once
     const displacementMap = useMemo(() => new THREE.CanvasTexture(generateHeightMapTexture()), []);
     const meshRef = useRef<THREE.Mesh>(null);
 
     useFrame(() => {
         if (meshRef.current) {
-            meshRef.current.rotation.z += 0.0005; // Very slow rotation
+            meshRef.current.rotation.z += 0.001; // Slow rotation
         }
     });
 
     return (
-        <group rotation={[-Math.PI / 2, 0, 0]}> {/* Rotate to lie flat */}
+        // Rotate -90 deg on X to make the plane flat (Z becomes Up)
+        <group rotation={[-Math.PI / 2, 0, 0]}> 
             <mesh ref={meshRef} position={[0, 0, 0]}>
-                <planeGeometry args={[20, 20, 128, 128]} /> {/* High segment count for detail */}
+                <planeGeometry args={[24, 24, 128, 128]} />
                 <meshStandardMaterial 
-                    color={heatmap ? "#ffffff" : "#cbd5e1"}
+                    color={heatmap ? "#ffffff" : "#94a3b8"}
                     wireframe={wireframe}
                     displacementMap={displacementMap}
-                    displacementScale={3 * exaggeration}
-                    roughness={0.8}
-                    metalness={0.2}
-                    // Simple heatmap simulation via vertex colors would be complex here without custom shader,
-                    // so we stick to material color tinting for "heatmap" visualization metaphor
-                    emissive={heatmap ? "#f97316" : "#000000"}
-                    emissiveIntensity={heatmap ? 0.2 : 0}
+                    displacementScale={4 * exaggeration}
+                    roughness={0.6}
+                    metalness={0.1}
+                    emissive={heatmap ? "#ef4444" : "#000000"}
+                    emissiveIntensity={heatmap ? 0.3 : 0}
+                    flatShading={true} // Low poly look
                 />
                 
-                {/* POI Markers attached to the mesh group */}
+                {/* POI Markers attached to the rotating mesh */}
                 {POI_DATA.map((poi) => (
-                    <Html 
-                        key={poi.id} 
-                        position={[poi.position[0], poi.position[1], 1 + (poi.position[2] || 0)]} // Adjust Z for height in this rotated space? 
-                        // Actually, Plane geometry displaces along Z (which is Up in rotated space). 
-                        // We need to approximate positions. Let's place markers in world space instead.
-                        // Html automatically tracks parent. But let's simplify and make them children of a non-rotating group if we want static positions,
-                        // or stick them to the mountain. Sticking to mountain is better.
-                        // We need to inverse the positions because we are rotating the mesh.
-                        // For simplicity in this specialized view, let's keep markers floating above.
-                        zIndexRange={[100, 0]}
-                    >
-                         {/* We will render these outside this mesh loop to avoid rotation issues or attach them properly */}
-                    </Html>
+                    <group key={poi.id} position={[poi.position[0], poi.position[1], 0]}>
+                        {/* 
+                           Note on positioning:
+                           The plane is on XY local. Displacement is along Z local.
+                           Markers are placed at XY local.
+                           We use Html to project text. We offset Z local to float above terrain.
+                           The parent mesh rotates around Z local (which is Y world).
+                        */}
+                        <Html position={[0, 0, poi.position[2]]} center zIndexRange={[100, 0]} distanceFactor={15}>
+                            <div className="group relative cursor-pointer" onClick={(e) => { e.stopPropagation(); onSelectPoi(poi); }}>
+                                <div className="flex flex-col items-center">
+                                    <div className="w-3 h-3 bg-sky-500 rounded-full border border-white shadow-[0_0_10px_rgba(14,165,233,0.8)] animate-pulse group-hover:scale-150 transition-transform"></div>
+                                    <div className="mt-1 bg-black/60 text-white text-[8px] px-1.5 py-0.5 rounded border border-white/10 backdrop-blur-sm whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none font-mono">
+                                        {poi.name} <span className="text-sky-300">{poi.elevation}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </Html>
+                    </group>
                 ))}
             </mesh>
-            
-            {/* Markers placed relative to terrain center but not rotating with it for readability */}
-            {POI_DATA.map((poi) => (
-                 <group key={poi.id} position={[poi.position[0], poi.position[1], 0]}> 
-                    {/* The Z here in local group is Y in world space effectively due to parent rotation */}
-                     <Html position={[0, 0, 3]} center zIndexRange={[100, 0]}> 
-                        <div className="group relative cursor-pointer" onClick={(e) => { e.stopPropagation(); onSelectPoi(poi); }}>
-                            <div className="w-4 h-4 bg-sky-500 rounded-full border-2 border-white shadow-lg animate-pulse group-hover:scale-125 transition-transform"></div>
-                            <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 bg-sentinel-900/90 text-white text-xs px-2 py-1 rounded border border-sentinel-700 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                                {poi.name}
-                            </div>
-                        </div>
-                     </Html>
-                 </group>
-            ))}
         </group>
     );
 };
@@ -156,12 +137,14 @@ const TerrainMesh: React.FC<{
 const AtmosphericLights: React.FC = () => {
     return (
         <>
-            <ambientLight intensity={0.2} color="#475569" />
-            <directionalLight position={[10, 10, 5]} intensity={1.5} color="#ffd6d6" castShadow />
-            <pointLight position={[-10, -10, 5]} intensity={0.5} color="#38bdf8" />
+            <ambientLight intensity={0.3} color="#64748b" />
+            <directionalLight position={[10, 5, 10]} intensity={1.5} color="#e0f2fe" castShadow />
+            <pointLight position={[-10, -10, 5]} intensity={0.8} color="#38bdf8" />
+            <pointLight position={[10, -5, 2]} intensity={0.5} color="#f472b6" />
+            
             <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
-            <Cloud position={[-4, -2, 5]} speed={0.2} opacity={0.5} />
-            <Cloud position={[4, 2, 3]} speed={0.2} opacity={0.3} />
+            <Cloud position={[-8, 0, 5]} speed={0.1} opacity={0.3} args={[3, 2]} segments={20} bounds={[10, 2, 2]} color="#cbd5e1" />
+            <Cloud position={[8, 5, 2]} speed={0.1} opacity={0.2} args={[3, 2]} segments={20} bounds={[10, 2, 2]} color="#cbd5e1" />
         </>
     );
 };
@@ -171,7 +154,7 @@ const AtmosphericLights: React.FC = () => {
 const TerrainView: React.FC = () => {
     const [wireframe, setWireframe] = useState(false);
     const [heatmap, setHeatmap] = useState(false);
-    const [exaggeration, setExaggeration] = useState(1.5); // Default vertical exaggeration
+    const [exaggeration, setExaggeration] = useState(1.0);
     const [selectedPoi, setSelectedPoi] = useState<Poi | null>(null);
 
     const [aiState, setAiState] = useState<AiResponse>({
@@ -213,10 +196,10 @@ const TerrainView: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 h-full overflow-hidden">
             {/* 3D Canvas Area */}
             <div className="lg:col-span-2 relative h-[50vh] lg:h-full bg-black">
-                <Canvas camera={{ position: [0, -15, 10], fov: 45 }}>
-                    <Suspense fallback={null}>
+                <Canvas camera={{ position: [0, -20, 15], fov: 35 }}>
+                    <Suspense fallback={<Html center><span className="text-white text-xs animate-pulse">Initializing Terrain...</span></Html>}>
                          <color attach="background" args={['#020617']} />
-                         <fog attach="fog" args={['#020617', 5, 40]} />
+                         <fog attach="fog" args={['#020617', 10, 50]} />
                          <AtmosphericLights />
                          <TerrainMesh 
                             wireframe={wireframe} 
@@ -225,10 +208,12 @@ const TerrainView: React.FC = () => {
                             onSelectPoi={setSelectedPoi}
                          />
                          <OrbitControls 
-                            enablePan={true} 
+                            enablePan={false} 
                             enableZoom={true} 
-                            minPolarAngle={0} 
-                            maxPolarAngle={Math.PI / 2.5}
+                            minPolarAngle={Math.PI / 4} 
+                            maxPolarAngle={Math.PI / 2}
+                            minDistance={10}
+                            maxDistance={40}
                          />
                     </Suspense>
                 </Canvas>
@@ -252,7 +237,7 @@ const TerrainView: React.FC = () => {
 
                              <label className="flex items-center gap-2 cursor-pointer group">
                                  <input type="checkbox" checked={heatmap} onChange={(e) => setHeatmap(e.target.checked)} className="hidden" />
-                                 <div className={`w-8 h-4 rounded-full p-0.5 transition-colors ${heatmap ? 'bg-orange-500' : 'bg-sentinel-700'}`}>
+                                 <div className={`w-8 h-4 rounded-full p-0.5 transition-colors ${heatmap ? 'bg-red-500' : 'bg-sentinel-700'}`}>
                                      <div className={`w-3 h-3 bg-white rounded-full shadow-sm transform transition-transform ${heatmap ? 'translate-x-4' : 'translate-x-0'}`}></div>
                                  </div>
                                  <span className="text-xs text-slate-400 group-hover:text-white">Thermal Mode</span>
@@ -265,7 +250,7 @@ const TerrainView: React.FC = () => {
                                 <span className="text-[10px] font-mono text-sky-400">x{exaggeration.toFixed(1)}</span>
                              </div>
                              <input 
-                                type="range" min="0.5" max="3" step="0.1"
+                                type="range" min="0.5" max="2.5" step="0.1"
                                 value={exaggeration} 
                                 onChange={(e) => setExaggeration(Number(e.target.value))}
                                 className="w-full h-1.5 bg-sentinel-700 rounded-lg appearance-none cursor-pointer accent-sky-500"
@@ -276,7 +261,7 @@ const TerrainView: React.FC = () => {
                      <div className="bg-sentinel-900/90 backdrop-blur-md p-3 rounded-xl border border-sentinel-700 pointer-events-auto ml-auto">
                          <div className="flex items-center gap-2 text-xs text-slate-400">
                              <IconMap className="w-4 h-4" />
-                             <span>Navigate: Left Click (Rotate) • Right Click (Pan) • Scroll (Zoom)</span>
+                             <span>Navigate: Left Click (Rotate) • Scroll (Zoom)</span>
                          </div>
                      </div>
                 </div>
@@ -291,7 +276,7 @@ const TerrainView: React.FC = () => {
                     </h3>
                 </div>
                 
-                <div className="flex-1 p-4 overflow-y-auto">
+                <div className="flex-1 p-4 overflow-y-auto custom-scrollbar">
                     {selectedPoi ? (
                         <div className="h-full flex flex-col">
                             <div className="bg-sentinel-800 p-4 rounded-xl border border-sentinel-700 mb-4 animate-in fade-in slide-in-from-top-4">
