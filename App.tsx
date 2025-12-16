@@ -160,6 +160,32 @@ const App: React.FC = () => {
                </span>
             </div>
           </button>
+
+          {/* Creator Attribution */}
+          <div className="mt-6 pt-6 border-t border-sentinel-800 text-[10px] leading-relaxed text-slate-500 font-mono overflow-y-auto max-h-[200px] custom-scrollbar">
+            <div className="mb-2">
+              <span className="block font-bold text-slate-600 mb-0.5">DEVELOPER</span>
+              <span className="text-slate-400 block font-bold">Muhammad Yasin Khan</span>
+              <span className="text-slate-500 block text-[9px] mt-0.5">Institute of Geology; University of Azad Jammu and Kashmir, Muzaffarbad, Pakistan</span>
+            </div>
+            <div className="mb-2">
+              <span className="block font-bold text-slate-600 mb-0.5">ADDRESS</span>
+              <span className="text-slate-400 block">Bagh, AJK, Pakistan</span>
+            </div>
+            <div className="mb-2">
+              <span className="block font-bold text-slate-600 mb-0.5">PLATFORM</span>
+              <span className="text-slate-400 block">Google AI Studio with<br/>Google Gemini 3 Pro</span>
+            </div>
+            <div>
+              <span className="block font-bold text-slate-600 mb-0.5">CONTACT</span>
+              <a href="mailto:yasin.khan@ajku.edu.pk" className="text-sky-500 hover:text-sky-400 transition-colors block truncate" title="yasin.khan@ajku.edu.pk">
+                yasin.khan@ajku.edu.pk
+              </a>
+              <a href="https://wa.me/923255683321" target="_blank" rel="noopener noreferrer" className="text-emerald-500 hover:text-emerald-400 transition-colors block mt-0.5 truncate" title="WhatsApp">
+                WhatsApp: +923255683321
+              </a>
+            </div>
+          </div>
         </div>
       </aside>
 
