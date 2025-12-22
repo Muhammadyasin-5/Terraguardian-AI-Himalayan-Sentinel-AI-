@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { ResponsiveContainer, ComposedChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Area, ReferenceLine, Scatter, BarChart, Bar, Legend, Label, LabelList, ReferenceDot } from 'recharts';
 import AnalysisPanel from './AnalysisPanel';
 import { generateDeepThinkingInsight } from '../services/geminiService';
 import { AiResponse } from '../types';
-import { IconTectonics, IconActivity, IconAlertTriangle, IconMap, IconLayers, IconX, IconBeaker, IconHistory, IconClock } from './Icons';
+import { IconTectonics, IconActivity, IconAlertTriangle, IconMap, IconLayers, IconX, IconBeaker, IconHistory, IconClock, IconNavigation, IconMountain } from './Icons';
 
 interface VelocityVector {
   id: string;
@@ -221,18 +222,13 @@ const PETROLOGY_UNITS: PetrologyUnit[] = [
     }
 ];
 
-const getStatusColor = (status: string) => {
-    if (status.includes('Critical')) return 'bg-red-500/20 text-red-400 border-red-500/30 shadow-[0_0_15px_rgba(239,68,68,0.2)] animate-pulse';
-    if (status.includes('Active')) return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
-    if (status.includes('Reactivated')) return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
-    return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
-};
-
 const TectonicsView: React.FC = () => {
-  const [viewMode, setViewMode] = useState<'map' | 'profile' | 'petrology' | 'geochron'>('map');
+  const [viewMode, setViewMode] = useState<'map' | 'profile' | 'section' | 'petrology' | 'geochron'>('map');
   const [activeFault, setActiveFault] = useState<TectonicFault | null>(null);
+  const [selectedGps, setSelectedGps] = useState<VelocityVector | null>(null);
   const [activeUnit, setActiveUnit] = useState<PetrologyUnit | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<GeochronEvent | null>(null);
+  const [hoveredUnit, setHoveredUnit] = useState<string | null>(null);
   
   const [aiState, setAiState] = useState<AiResponse>({
     markdown: '',
@@ -240,12 +236,56 @@ const TectonicsView: React.FC = () => {
     isThinking: false
   });
 
-  const handleAnalysis = async () => {
-    setAiState({ ...aiState, loading: true, isThinking: true });
+  const handleAnalysis = async (target?: any) => {
+    setAiState({ markdown: '', loading: true, isThinking: true });
 
     let prompt = '';
 
-    if (viewMode === 'petrology') {
+    if (viewMode === 'section') {
+        prompt = `
+        **STRUCTURAL CROSS-SECTION ANALYSIS: NANGA PARBAT SYNTAXIS**
+        
+        Analyze the provided balanced cross-section geometry:
+        1. **Kinematic Modeling**: Explain the "pop-up" mechanism between the Raikot and Stak faults.
+        2. **Shortening Estimates**: Based on the folded Iskere and Shengus gneiss geometries, estimate the crustal shortening percentage since 10Ma.
+        3. **Isostatic Response**: Link the 7km vertical relief to the erosional feedback from the Indus River (Tectonic Aneurysm).
+        4. **Deep Structure**: Interpret the role of the Indian crustal ramp and the Main Mantle Thrust (MMT) loop at depth.
+
+        **Tone:** Senior Structural Geologist.
+        `;
+    } else if (target?.station) {
+        prompt = `
+        **GEODETIC ANALYSIS: STATION ${target.station}**
+        
+        **GNSS Data:**
+        - Easting Velocity (Vx): ${target.vx} mm/yr
+        - Northing Velocity (Vy): ${target.vy} mm/yr
+        - Vector Magnitude: ${Math.sqrt(target.vx**2 + target.vy**2).toFixed(2)} mm/yr
+        
+        **Analysis Requirements:**
+        1. **Regional Kinematics**: Interpret this motion vector in the context of the Indian Plate's NNE convergence (~40mm/yr).
+        2. **Strain Accumulation**: Is this station showing an extrusion signature relative to the stable Tibetan plateau?
+        3. **Fault Coupling**: Assess strain buildup on the nearby ${TECTONIC_FAULTS.find(f => f.id === 'raikot')?.name || 'boundary faults'}.
+        
+        **Tone:** Senior Geodesist.
+        `;
+    } else if (target?.name && target?.status) {
+        prompt = `
+        **FAULT ANALYSIS: ${target.name.toUpperCase()}**
+        
+        **Structural Data:**
+        - Type: ${target.type}
+        - Status: ${target.status}
+        - Description: ${target.description}
+        
+        **Analysis Requirements:**
+        1. **Kinematic Role**: Detail the fault's role in the syntaxial pop-up mechanism.
+        2. **Seismic Profile**: Based on the status "${target.status}", assess the likelihood of a coseismic rupture in the current stress regime.
+        3. **Exhumation Coupling**: Link this fault's activity to the 10mm/yr exhumation rate of Nanga Parbat.
+        
+        **Tone:** Structural Geologist / Tectonophysicist.
+        `;
+    } else if (viewMode === 'petrology') {
         prompt = `
         **PETROLOGICAL & GEOCHEMICAL ANALYSIS: NANGA PARBAT**
         
@@ -254,69 +294,60 @@ const TectonicsView: React.FC = () => {
         - Key feature: Decompression melting forming "Tato Leucogranites".
         
         **Analysis Requirements:**
-        1. **P-T Evolution Path:** Analyze the significance of the "Clockwise P-T path" showing rapid isothermal decompression (ITD). What does the stability of Cordierite + Spinel tell us about the uplift rate?
-        2. **Leucogranite Genesis:** Explain the geochemical data (High SiO2, High K2O, Low CaO/FeOt) of the Tato Leucogranites. Confirm if this indicates "Fluid-Absent Muscovite Breakdown Melting".
-        3. **Exhumation Velocity:** Correlate the radiometric ages (U-Pb on Zircon vs. Ar-Ar on Biotite) to calculate the cooling rate (°C/Myr).
-        4. **Tectonic Implication:** How does this petrology support the "Tectonic Aneurysm" hypothesis?
+        1. **P-T Evolution Path**: Analyze the clockwise P-T path significance.
+        2. **Leucogranite Genesis**: Discuss fluid-absent melting models.
+        3. **Exhumation Rates**: Correlate Ar-Ar and U-Pb data.
 
-        **Tone:** Senior Petrologist. Focus on metamorphic phase equilibria and geochronology.
+        **Tone:** Senior Petrologist.
         `;
     } else if (viewMode === 'geochron') {
-        if (selectedEvent) {
-             prompt = `
-            **EVENT ANALYSIS: ${selectedEvent.event.toUpperCase()} (${selectedEvent.time})**
-
-            **Context:**
-            ${selectedEvent.details}
-
-            **Analysis Request:**
-            ${selectedEvent.context}
-            
-            1. **Geological Context:** Provide a detailed breakdown of the tectonic drivers behind this event.
-            2. **Regional Impact:** How did this event influence the surrounding terranes (Kohistan Arc / Indian Plate) and local stratigraphy?
-            3. **Modern Signatures:** What specific petrological or structural evidence visible today dates back to this specific event?
-
-            **Tone:** Senior Geologist. Detailed and rigorous.
-            `;
-        } else {
-            prompt = `
-            **GEOCHRONOLOGICAL ANALYSIS: NANGA PARBAT SYNTAXIS**
-
-            **Dataset:**
-            - Cooling History: Peak Metamorphism (700°C @ 12Ma) -> Rapid Exhumation (350°C @ 5Ma) -> Surface (Now).
-            - Apatite Fission Track Ages: < 1 Ma (0.5 - 0.7 Ma).
-            - Biotite Ar-Ar Ages: ~3 Ma.
-
-            **Analysis Requirements:**
-            1. **Cooling Rate Calculation**: Calculate the implied cooling rate (°C/Myr) between the Biotite Ar-Ar closure (~300°C) and Apatite FT closure (~110°C).
-            2. **Exhumation Velocity**: Assuming a geothermal gradient of 30-50°C/km, convert the cooling rate into an exhumation velocity (mm/yr). 
-            3. **The "Youngest" Granites**: Discuss the significance of the 1-3 Ma U-Pb Zircon ages in the Tato Leucogranites relative to the general Himalayan orogeny.
-            4. **Erosion Coupling**: Does this data support the hypothesis that rapid incision by the Indus River is driving this tectonic uplift?
-
-            **Tone:** Senior Geochronologist. Quantitative and precise.
-            `;
-        }
+        const event = target || selectedEvent;
+        prompt = event ? `
+            **EVENT ANALYSIS: ${event.event.toUpperCase()} (${event.time})**
+            ${event.details}
+            ${event.context}
+            Tone: Senior Geochronologist.
+        ` : `
+            **GEOCHRONOLOGICAL OVERVIEW: NANGA PARBAT SYNTAXIS**
+            Analyze the extreme thermochronological gradient of the massif.
+            Tone: Senior Scientist.
+        `;
     } else {
         prompt = `
         **TECTONIC STRUCTURAL ANALYSIS: NANGA PARBAT SYNTAXIS**
-        
-        **Geodynamic Context:**
-        - Indian Plate Convergence: ~38-42 mm/yr (NNE vector)
-        - Exhumation Rate: ~10mm/yr (Highest on Earth)
-        - Structural Setting: Western Himalayan Syntaxis (Axis of crustal rotation)
-        
-        **Analysis Vectors:**
-        1. **The Tectonic Aneurysm Model**: Provide a physics-based explanation of how rapid river incision by the Indus River weakens the crust, leading to isostatic rebound and the upward extrusion of hot lower-crustal rocks.
-        2. **Seismic Gap Assessment**: Evaluate the strain accumulation along the Main Mantle Thrust (MMT). Is the Raikot Fault currently locked?
-        3. **Risk Forecast**: Probability of a >M7.0 event in the next decade based on current geodetic strain rates.
-
-        **Tone:** Senior Tectonophysicist. Use rigorous academic structure.
+        Provide a physics-based explanation of the Western Himalayan Syntaxis.
+        Tone: Senior Tectonophysicist.
         `;
     }
 
-    const result = await generateDeepThinkingInsight(prompt);
-    setAiState({ markdown: result, loading: false, isThinking: false });
+    try {
+        const result = await generateDeepThinkingInsight(prompt);
+        setAiState({ markdown: result, loading: false, isThinking: false });
+    } catch (e) {
+        setAiState({ markdown: "Analysis failed due to link degradation.", loading: false, isThinking: false });
+    }
   };
+
+  // Auto-trigger analysis for faults and GPS
+  useEffect(() => {
+      if (activeFault) {
+          handleAnalysis(activeFault);
+          setSelectedGps(null);
+      }
+  }, [activeFault?.id]);
+
+  useEffect(() => {
+      if (selectedGps) {
+          handleAnalysis(selectedGps);
+          setActiveFault(null);
+      }
+  }, [selectedGps?.id]);
+
+  useEffect(() => {
+      if (viewMode === 'section') {
+          handleAnalysis();
+      }
+  }, [viewMode]);
 
   const handleExport = () => {
     const report = {
@@ -339,11 +370,12 @@ const TectonicsView: React.FC = () => {
   };
 
   const getAnalysisTitle = () => {
-    if (viewMode === 'petrology') return "Petrology & Geochronology Engine";
-    if (viewMode === 'geochron') {
-        return selectedEvent ? `Event Analysis: ${selectedEvent.time}` : "Geochronology Engine";
-    }
-    return "Structural Geology Engine";
+    if (selectedGps) return `Station ${selectedGps.station} Intel`;
+    if (activeFault) return `Fault SITREP: ${activeFault.name}`;
+    if (viewMode === 'section') return "Balanced Cross-Section Intel";
+    if (viewMode === 'petrology') return "Petrology Analysis";
+    if (viewMode === 'geochron') return "Geochronology Intel";
+    return "Regional Geodynamic Intel";
   };
 
   return (
@@ -352,251 +384,167 @@ const TectonicsView: React.FC = () => {
       <div className="flex flex-col gap-6 overflow-y-auto pr-2 custom-scrollbar">
         
         {/* Main Visualization Card */}
-        <div className="bg-sentinel-800 p-6 rounded-xl border border-sentinel-700 shadow-lg flex-shrink-0 flex flex-col h-[600px]">
-           <div className="flex justify-between items-center mb-6">
+        <div className="bg-sentinel-800 p-6 rounded-xl border border-sentinel-700 shadow-lg flex-shrink-0 flex flex-col h-[600px] relative overflow-hidden">
+           <div className="flex justify-between items-center mb-6 relative z-10">
               <div>
                  <h3 className="text-xl font-bold text-white flex items-center gap-2">
                     {viewMode === 'petrology' ? <IconBeaker className="w-6 h-6 text-pink-400" /> : 
                      viewMode === 'geochron' ? <IconHistory className="w-6 h-6 text-teal-400" /> :
+                     viewMode === 'section' ? <IconMountain className="w-6 h-6 text-emerald-400" /> :
                      <IconTectonics className="w-6 h-6 text-orange-500" />}
-                    {viewMode === 'petrology' ? 'Petrology' : viewMode === 'geochron' ? 'Geochronology' : 'Geodynamics'}
+                    {viewMode === 'petrology' ? 'Petrology' : viewMode === 'geochron' ? 'Geochronology' : viewMode === 'section' ? 'Balanced Section' : 'Geodynamics'}
                  </h3>
                  <p className="text-slate-400 text-sm">
                      {viewMode === 'petrology' ? 'Metamorphic P-T evolution & composition.' : 
                       viewMode === 'geochron' ? 'Thermochronometry & Exhumation Rates.' :
-                      'Plate motion kinematics & lithospheric structure.'}
+                      viewMode === 'section' ? 'Structural geometry & pop-up mechanics.' :
+                      'Plate motion kinematics & fault systems.'}
                  </p>
               </div>
-              <div className="flex bg-sentinel-900 rounded-lg p-1 border border-sentinel-700">
+              <div className="flex bg-sentinel-900 rounded-lg p-1 border border-sentinel-700 shadow-inner">
                  <button 
                    onClick={() => setViewMode('map')}
-                   className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'map' ? 'bg-orange-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                   className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'map' ? 'bg-orange-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
                  >
                     MAP
                  </button>
                  <button 
                    onClick={() => setViewMode('profile')}
-                   className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'profile' ? 'bg-orange-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                   className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'profile' ? 'bg-orange-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
                  >
-                    PROFILE
+                    CRUST
+                 </button>
+                 <button 
+                   onClick={() => setViewMode('section')}
+                   className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'section' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
+                 >
+                    SECTION
                  </button>
                  <button 
                    onClick={() => setViewMode('petrology')}
-                   className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'petrology' ? 'bg-pink-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                   className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'petrology' ? 'bg-pink-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
                  >
                     PETRO
                  </button>
                  <button 
                    onClick={() => setViewMode('geochron')}
-                   className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'geochron' ? 'bg-teal-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                   className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${viewMode === 'geochron' ? 'bg-teal-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
                  >
                     AGE
                  </button>
               </div>
            </div>
 
-           <div className="flex-1 relative bg-sentinel-900 rounded-xl overflow-hidden border border-sentinel-700/50 p-4">
+           <div className="flex-1 relative bg-sentinel-900 rounded-xl overflow-hidden border border-sentinel-700/50 p-4 shadow-inner">
               {viewMode === 'map' ? (
                  <div className="w-full h-full relative">
                     <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
                        <defs>
-                          <marker id="arrowhead" markerWidth="4" markerHeight="4" refX="0" refY="2" orient="auto">
+                          <marker id="arrowhead" markerWidth="4" markerHeight="4" refX="4" refY="2" orient="auto">
                              <polygon points="0 0, 4 2, 0 4" fill="#38bdf8" />
                           </marker>
-                          {/* Fault Markers */}
                           <marker id="thrustTeeth" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
                               <path d="M 0 0 L 6 3 L 0 6 z" fill="#ef4444" opacity="0.9" />
-                          </marker>
-                          <marker id="shearArrow" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
-                              <path d="M 0 0 L 6 3 L 0 6" fill="none" stroke="#fbbf24" strokeWidth="1.5" />
                           </marker>
                           
                           <filter id="glow">
                              <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
                              <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
                           </filter>
-                          <filter id="criticalGlow">
-                             <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-                             <feFlood floodColor="#ef4444" floodOpacity="0.6" result="glowColor" />
-                             <feComposite in="glowColor" in2="coloredBlur" operator="in" result="coloredBlur" />
-                             <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
-                          </filter>
                           
-                          {/* Terrane Patterns */}
-                          <pattern id="pattern-kohistan" x="0" y="0" width="10" height="10" patternUnits="userSpaceOnUse">
-                             <circle cx="2" cy="2" r="0.8" fill="#475569" opacity="0.3"/>
-                          </pattern>
-                          <pattern id="pattern-indian" x="0" y="0" width="12" height="12" patternUnits="userSpaceOnUse">
-                             <path d="M0,12 l12,-12" stroke="#475569" strokeWidth="0.5" opacity="0.2"/>
+                          <pattern id="pattern-grid" x="0" y="0" width="10" height="10" patternUnits="userSpaceOnUse">
+                             <path d="M 10 0 L 0 0 0 10" fill="none" stroke="white" strokeWidth="0.05" opacity="0.05"/>
                           </pattern>
                        </defs>
 
-                       {/* REGIONAL TECTONIC MAP BASE */}
+                       <rect width="100" height="100" fill="url(#pattern-grid)" />
+
+                       {/* Regional Terranes */}
+                       <path d="M 0,0 L 100,0 L 100,100 L 0,100 Z" fill="#0f172a" opacity="0.5" />
                        
-                       {/* 1. Kohistan-Ladakh Arc (Hanging Wall) */}
-                       <rect x="0" y="0" width="100" height="100" fill="#0f172a" />
-                       <rect x="0" y="0" width="100" height="100" fill="url(#pattern-kohistan)" />
-                       <text x="50" y="10" fill="white" opacity="0.15" fontSize="6" fontWeight="900" textAnchor="middle" letterSpacing="0.2em">KOHISTAN ARC</text>
+                       {/* Faults Layer */}
+                       {TECTONIC_FAULTS.map((fault) => (
+                           <g key={fault.id} onClick={() => { setActiveFault(activeFault?.id === fault.id ? null : fault); setSelectedGps(null); }} className="cursor-pointer group">
+                               <path d={fault.path} fill="none" stroke="transparent" strokeWidth="10" />
+                               <path 
+                                  d={fault.path} 
+                                  fill="none" 
+                                  stroke={fault.color} 
+                                  strokeWidth={activeFault?.id === fault.id ? 2.5 : 1.2} 
+                                  strokeDasharray={fault.dashArray}
+                                  markerEnd={fault.type.includes('Thrust') ? "url(#thrustTeeth)" : ""}
+                                  className="transition-all duration-300 group-hover:stroke-[1.8]"
+                                  filter={activeFault?.id === fault.id ? "url(#glow)" : ""}
+                               />
+                               <circle cx={fault.labelPos.x} cy={fault.labelPos.y} r="1" fill={fault.color} className="animate-pulse" />
+                           </g>
+                       ))}
 
-                       {/* 2. Indian Plate / Nanga Parbat Syntaxis (Footwall inside MMT) */}
-                       {/* Using MMT Path logic to define the Indian Plate promontory */}
-                       <path 
-                          d="M 20,100 C 30,60 40,30 50,25 C 60,30 70,60 80,100 L 100,100 L 100,110 L 0,110 Z" 
-                          fill="#1e293b" 
-                          stroke="none" 
-                       />
-                       <path 
-                          d="M 20,100 C 30,60 40,30 50,25 C 60,30 70,60 80,100 L 100,100 L 100,110 L 0,110 Z" 
-                          fill="url(#pattern-indian)" 
-                          stroke="none" 
-                       />
-                       <text x="50" y="80" fill="white" opacity="0.1" fontSize="6" fontWeight="900" textAnchor="middle" letterSpacing="0.1em">INDIAN PLATE</text>
-                       
-                       {/* 3. Indus River System */}
-                       {/* Flows from East, bends North around the syntaxis, then cuts West */}
-                       <path 
-                          d="M 95,100 C 90,60 75,15 50,10 C 25,15 10,40 0,45" 
-                          fill="none" 
-                          stroke="#0ea5e9" 
-                          strokeWidth="0.8" 
-                          strokeDasharray="3 1" 
-                          opacity="0.5" 
-                       />
-                       <text x="88" y="85" fill="#0ea5e9" opacity="0.5" fontSize="2" fontWeight="bold" transform="rotate(-80 88,85)">INDUS RIVER</text>
-
-                       {/* Tectonic Faults Layer */}
-                       {TECTONIC_FAULTS.map((fault) => {
-                           const isActive = activeFault?.id === fault.id;
-                           const isCritical = fault.status.includes('Critical');
-                           // Determine marker based on fault type
-                           let markerEnd = "";
-                           if (fault.type.includes('Thrust') || fault.type.includes('Suture')) markerEnd = "url(#thrustTeeth)";
-                           else if (fault.type.includes('Shear')) markerEnd = "url(#shearArrow)";
-
-                           return (
-                               <g 
-                                 key={fault.id} 
-                                 onClick={() => setActiveFault(isActive ? null : fault)}
-                                 className="cursor-pointer group"
-                               >
-                                   {/* Hover Target */}
-                                   <path d={fault.path} fill="none" stroke="transparent" strokeWidth="10" />
-                                   
-                                   {/* Fault Line */}
-                                   <path 
-                                      d={fault.path} 
-                                      fill="none" 
-                                      stroke={fault.color} 
-                                      strokeWidth={isActive ? "2" : isCritical ? "1.5" : "1.2"} 
-                                      strokeDasharray={fault.dashArray}
-                                      markerEnd={markerEnd}
-                                      filter={isCritical ? "url(#criticalGlow)" : ""}
-                                      className={`transition-all duration-300 group-hover:stroke-[1.8] ${isCritical && !isActive ? 'animate-pulse' : ''}`}
-                                   />
-                                   
-                                   {/* Label Node */}
-                                   <circle 
-                                      cx={fault.labelPos.x} 
-                                      cy={fault.labelPos.y} 
-                                      r={isActive ? "2" : "1.2"} 
-                                      fill={fault.color} 
-                                      className={`transition-all duration-300 ${isActive || isCritical ? 'animate-ping' : ''}`} 
-                                   />
-                                   <circle cx={fault.labelPos.x} cy={fault.labelPos.y} r={isActive ? "1" : "0.8"} fill="#fff" />
-                                   <text 
-                                      x={fault.labelPos.x} y={fault.labelPos.y - 4} 
-                                      fill={fault.color} fontSize="3" textAnchor="middle" fontWeight="bold"
-                                      className={`transition-opacity duration-300 ${isActive ? 'opacity-100' : 'opacity-80 group-hover:opacity-100'}`}
-                                      style={{ textShadow: '0px 1px 2px rgba(0,0,0,1)' }}
-                                   >{fault.name}</text>
-                               </g>
-                           );
-                       })}
-
-                       {/* Nanga Parbat Massif */}
-                       <circle cx="50" cy="35" r="5" fill="#f97316" opacity="0.8" filter="url(#glow)" className="pointer-events-none" />
-                       <text x="50" y="34" fill="white" fontSize="2" textAnchor="middle" fontWeight="bold" className="pointer-events-none">NANGA PARBAT</text>
-
-                       {/* GPS Vectors */}
+                       {/* GPS Velocity Vectors */}
                        {GPS_DATA.map((vec) => (
-                          <g key={vec.id} className="pointer-events-none opacity-60">
+                          <g key={vec.id} onClick={() => { setSelectedGps(selectedGps?.id === vec.id ? null : vec); setActiveFault(null); }} className="cursor-pointer group">
+                             {/* Hit area */}
+                             <circle cx={vec.long} cy={100 - vec.lat} r="4" fill="transparent" />
+                             
+                             {/* Velocity Line */}
                              <line 
                                 x1={vec.long} y1={100 - vec.lat} 
                                 x2={vec.long + (vec.vx / 4)} y2={(100 - vec.lat) - (vec.vy / 4)} 
-                                stroke="#38bdf8" strokeWidth="0.5" markerEnd="url(#arrowhead)"
+                                stroke="#38bdf8" 
+                                strokeWidth={selectedGps?.id === vec.id ? 1.5 : 0.8} 
+                                markerEnd="url(#arrowhead)"
+                                className="transition-all duration-300 group-hover:stroke-sky-300"
                              />
-                             <circle cx={vec.long} cy={100 - vec.lat} r="1" fill="#0ea5e9" />
-                             <text x={vec.long + 2} y={100 - vec.lat} fontSize="2" fill="#94a3b8">{vec.station}</text>
+                             
+                             {/* Station Point */}
+                             <circle 
+                                cx={vec.long} 
+                                cy={100 - vec.lat} 
+                                r={selectedGps?.id === vec.id ? 1.5 : 0.8} 
+                                fill={selectedGps?.id === vec.id ? "#fff" : "#0ea5e9"} 
+                                className="transition-all duration-300 group-hover:scale-125"
+                                stroke={selectedGps?.id === vec.id ? "#38bdf8" : "none"}
+                                strokeWidth="0.5"
+                             />
+                             
+                             {/* Label */}
+                             <text 
+                                x={vec.long + 2} y={100 - vec.lat + 1} 
+                                fontSize="2" 
+                                fill={selectedGps?.id === vec.id ? "#fff" : "#94a3b8"}
+                                className={`font-bold uppercase tracking-widest transition-opacity ${selectedGps?.id === vec.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                             >
+                                {vec.station}
+                             </text>
                           </g>
                        ))}
                     </svg>
 
-                    {/* Structural Key Legend */}
-                    <div className="absolute top-4 left-4 bg-sentinel-900/90 backdrop-blur p-3 rounded-lg border border-sentinel-700 shadow-xl pointer-events-none">
-                        <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Regional Features</h5>
-                        <div className="space-y-1.5">
-                            <div className="flex items-center gap-2">
-                                <div className="w-6 h-3 bg-slate-800 border border-slate-600"></div>
-                                <span className="text-[9px] text-slate-300">Kohistan Arc</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <div className="w-6 h-3 bg-slate-700 border border-slate-500 relative overflow-hidden">
-                                     <div className="absolute inset-0 opacity-30" style={{backgroundImage: 'repeating-linear-gradient(45deg, #000 0, #000 1px, transparent 0, transparent 50%)', backgroundSize: '4px 4px'}}></div>
+                    {/* HUD Overlays */}
+                    <div className="absolute top-4 left-4 pointer-events-none">
+                        <div className="bg-sentinel-900/80 backdrop-blur p-3 rounded-lg border border-sentinel-700 shadow-xl">
+                            <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Examination Key</h5>
+                            <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                    <IconNavigation className="w-3 h-3 text-sky-400 transform -rotate-45" />
+                                    <span className="text-[9px] text-slate-300">GPS Velocity (mm/yr)</span>
                                 </div>
-                                <span className="text-[9px] text-slate-300">Indian Plate</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <div className="w-6 h-0.5 bg-sky-500 border-b border-sky-500 border-dashed"></div>
-                                <span className="text-[9px] text-slate-300">Indus River</span>
-                            </div>
-                            <div className="my-1 border-t border-slate-700"></div>
-                            <div className="flex items-center gap-2">
-                                <div className="w-6 h-0.5 bg-red-500 relative flex items-center justify-end">
-                                    <div className="w-0 h-0 border-t-[3px] border-t-transparent border-l-[4px] border-l-red-500 border-b-[3px] border-b-transparent"></div>
+                                <div className="flex items-center gap-2">
+                                    <div className="w-4 h-0.5 bg-red-500 border-b border-red-500 relative flex items-center justify-end">
+                                        <div className="w-1.5 h-1.5 border-t border-r border-red-500 transform rotate-45 -mr-1"></div>
+                                    </div>
+                                    <span className="text-[9px] text-slate-300">Thrust Fault Line</span>
                                 </div>
-                                <span className="text-[9px] text-slate-300">Thrust / Suture</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <div className="w-6 h-0.5 bg-amber-400 border-b border-amber-400 border-dashed relative flex items-center justify-end">
-                                    <div className="w-1.5 h-1.5 border-t border-r border-amber-400 transform rotate-45"></div>
+                                <div className="flex items-center gap-2">
+                                    <div className="w-4 h-0.5 bg-orange-500"></div>
+                                    <span className="text-[9px] text-slate-300">Active Boundary Fault</span>
                                 </div>
-                                <span className="text-[9px] text-slate-300">Shear Zone</span>
                             </div>
                         </div>
                     </div>
-                    
-                    {activeFault && (
-                        <div className="absolute bottom-4 left-4 right-4 bg-sentinel-900/95 backdrop-blur-md p-4 rounded-lg border border-sentinel-700 shadow-2xl animate-in slide-in-from-bottom-2">
-                            <div className="flex justify-between items-start mb-2">
-                                <div>
-                                    <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                                        <span style={{ color: activeFault.color }}><IconActivity className="w-4 h-4" /></span>
-                                        {activeFault.name}
-                                    </h4>
-                                    <div className="flex gap-2 mt-1">
-                                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-sentinel-800 border border-sentinel-700 text-slate-300">TYPE: {activeFault.type}</span>
-                                        <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${getStatusColor(activeFault.status)}`}>
-                                            STATUS: {activeFault.status}
-                                        </span>
-                                    </div>
-                                </div>
-                                <button onClick={() => setActiveFault(null)} className="text-slate-500 hover:text-white"><IconX className="w-4 h-4" /></button>
-                            </div>
-                            <p className="text-xs text-slate-300 leading-relaxed mb-3">{activeFault.description}</p>
-                            
-                            {/* Geological Significance Section */}
-                            <div className="bg-sentinel-800/50 p-2.5 rounded border border-sentinel-700/50 flex flex-col gap-1">
-                                <div className="flex items-center gap-1.5">
-                                    <IconTectonics className="w-3 h-3 text-indigo-400" />
-                                    <span className="text-[10px] text-indigo-200 uppercase font-bold">Geological Significance</span>
-                                </div>
-                                <p className="text-xs text-slate-400 italic leading-relaxed">"{activeFault.geologicalSignificance}"</p>
-                            </div>
-                        </div>
-                    )}
                  </div>
               ) : viewMode === 'profile' ? (
-                 <div className="w-full h-full">
+                 <div className="w-full h-full p-4">
                     <ResponsiveContainer width="100%" height="100%">
                        <ComposedChart data={CRUSTAL_PROFILE} margin={{ top: 20, right: 20, bottom: 20, left: 0 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
@@ -606,160 +554,171 @@ const TectonicsView: React.FC = () => {
                           <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155' }} />
                           <Area yAxisId="depth" type="monotone" dataKey="depth" name="Moho Depth" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.2} strokeWidth={3} />
                           <Area yAxisId="terrain" type="monotone" dataKey="terrain" name="Surface Elevation" stroke="#cbd5e1" fill="#cbd5e1" fillOpacity={0.1} strokeWidth={1} />
-                          <ReferenceLine yAxisId="depth" x={80} stroke="#ef4444" strokeDasharray="3 3" label={{ position: 'top', value: 'SYNTAXIAL AXIS', fill: '#ef4444', fontSize: 10 }} />
-                          
-                          <ReferenceDot yAxisId="depth" x={80} y={65} r={6} fill="#ef4444" stroke="none">
-                              <Label value="MAX THICKNESS (65km)" position="top" fill="#ef4444" fontSize={10} fontWeight="bold" />
-                          </ReferenceDot>
-
-                          <ReferenceDot yAxisId="depth" x={20} y={38} r={4} fill="#f59e0b" stroke="none">
-                              <Label value="MOHO DISCONTINUITY" position="bottom" fill="#f59e0b" fontSize={10} />
-                          </ReferenceDot>
-
-                          <ReferenceDot yAxisId="depth" x={50} y={45} r={4} fill="#cbd5e1" stroke="none">
-                              <Label value="INDIAN PLATE (Underthrusting)" position="insideBottomRight" fill="#cbd5e1" fontSize={10} />
-                          </ReferenceDot>
                        </ComposedChart>
                     </ResponsiveContainer>
                  </div>
-              ) : viewMode === 'geochron' ? (
-                  <div className="w-full h-full flex flex-col gap-4 overflow-y-auto custom-scrollbar pr-2">
-                      {/* Cooling History Chart */}
-                      <div className="h-72 flex-shrink-0 bg-sentinel-900/50 rounded-lg p-2 border border-sentinel-700/50">
-                        <div className="flex justify-between items-center px-2 mb-2">
-                            <h4 className="text-xs font-bold text-teal-400 uppercase tracking-wider">Cooling History (Thermochronology)</h4>
-                            <span className="text-[10px] text-slate-500">Exhumation Rate Indicator</span>
+              ) : viewMode === 'section' ? (
+                 <div className="w-full h-full bg-[#020617] relative flex flex-col p-4">
+                    <div className="flex-1 border border-emerald-500/20 rounded-xl overflow-hidden relative group">
+                        <svg className="w-full h-full" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice">
+                            <defs>
+                                <pattern id="diag-gneiss-core" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
+                                    <path d="M0,10 Q5,0 10,10 T20,10" fill="none" stroke="white" strokeWidth="0.5" opacity="0.1" />
+                                    <path d="M0,20 Q5,10 10,20 T20,20" fill="none" stroke="white" strokeWidth="0.5" opacity="0.1" />
+                                </pattern>
+                                <pattern id="diag-granite-plugs" x="0" y="0" width="30" height="30" patternUnits="userSpaceOnUse">
+                                    <circle cx="15" cy="15" r="2" fill="#ec4899" opacity="0.4" />
+                                </pattern>
+                                <linearGradient id="sky-grad" x1="0" x2="0" y1="0" y2="1">
+                                    <stop offset="0%" stopColor="#0f172a" />
+                                    <stop offset="100%" stopColor="#1e293b" />
+                                </linearGradient>
+                            </defs>
+                            
+                            {/* Sky */}
+                            <rect width="400" height="300" fill="url(#sky-grad)" />
+                            
+                            {/* Indian Plate Basement (Bottom Left to Deep Right) */}
+                            <path 
+                                d="M 0,280 Q 150,250 250,200 L 400,220 L 400,300 L 0,300 Z" 
+                                fill="#1c1917" stroke="#44403c" strokeWidth="1"
+                                className="cursor-pointer hover:fill-[#292524] transition-colors"
+                                onMouseEnter={() => setHoveredUnit("Indian Plate Basement")}
+                                onMouseLeave={() => setHoveredUnit(null)}
+                            />
+
+                            {/* Folded Cover Sequence (Mito) */}
+                            <path 
+                                d="M 0,250 Q 100,220 200,180 Q 220,120 250,140 Q 280,180 400,190 L 400,220 L 250,200 Q 150,250 0,280 Z" 
+                                fill="#065f46" fillOpacity="0.4" stroke="#059669" strokeWidth="1"
+                                className="cursor-pointer hover:fill-opacity-60 transition-all"
+                                onMouseEnter={() => setHoveredUnit("Mito Cover Sequence (Folded)")}
+                                onMouseLeave={() => setHoveredUnit(null)}
+                            />
+
+                            {/* Syntaxial Pop-Up Core (Iskere Gneiss) */}
+                            <path 
+                                d="M 120,220 Q 180,80 200,40 Q 220,80 280,220 L 250,250 Q 200,150 150,250 Z" 
+                                fill="#475569" stroke="#94a3b8" strokeWidth="1.5"
+                                className="cursor-pointer hover:fill-[#64748b] transition-all"
+                                onMouseEnter={() => setHoveredUnit("Iskere Gneiss Core (Pop-up)")}
+                                onMouseLeave={() => setHoveredUnit(null)}
+                            />
+                            <rect x="150" y="40" width="100" height="200" fill="url(#diag-gneiss-core)" pointerEvents="none" />
+
+                            {/* Tato Granites (Late Intrusions) */}
+                            <path d="M 190,60 Q 200,40 210,60 Z" fill="#fbcfe8" fillOpacity="0.8" stroke="#ec4899" strokeWidth="0.5" />
+                            <path d="M 180,80 Q 190,70 200,80 Z" fill="#fbcfe8" fillOpacity="0.8" stroke="#ec4899" strokeWidth="0.5" />
+                            
+                            {/* Fault Lines (Structural Boundaries) */}
+                            {/* Raikot Fault */}
+                            <path d="M 130,280 Q 150,150 175,42" fill="none" stroke="#f97316" strokeWidth="2.5" strokeDasharray="4 2" />
+                            {/* Stak Fault */}
+                            <path d="M 320,280 Q 280,150 250,42" fill="none" stroke="#eab308" strokeWidth="2.5" strokeDasharray="4 2" />
+                            {/* MMT - Loops around */}
+                            <path d="M 50,300 Q 100,50 200,20 Q 300,50 350,300" fill="none" stroke="#ef4444" strokeWidth="3" opacity="0.8" />
+                            
+                            {/* Topography Line (Surface) */}
+                            <path 
+                                d="M 0,230 L 100,210 L 150,150 L 200,20 L 250,150 L 300,180 L 400,190" 
+                                fill="none" stroke="white" strokeWidth="2" strokeLinejoin="round" 
+                            />
+                            
+                            {/* Labels */}
+                            <g fontSize="6" fill="white" fontWeight="bold" fontFamily="monospace">
+                                <text x="185" y="15" textAnchor="middle">NANGA PARBAT PEAK</text>
+                                <text x="140" y="120" transform="rotate(-70 140,120)" fill="#f97316">RAIKOT FAULT</text>
+                                <text x="275" y="120" transform="rotate(70 275,120)" fill="#eab308">STAK FAULT</text>
+                                <text x="50" y="150" fill="#ef4444">MMT SUTURE</text>
+                                <text x="200" y="270" textAnchor="middle" opacity="0.3">INDIAN CRUSTAL RAMP</text>
+                            </g>
+                        </svg>
+
+                        {/* Interactive UI Overlays on Section */}
+                        <div className="absolute top-4 left-4 bg-sentinel-950/80 backdrop-blur p-3 rounded-lg border border-emerald-500/30">
+                            <h5 className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-1">Structural Interpretation</h5>
+                            <p className="text-[9px] text-slate-400">Scale: 1:1 Vertical Exaggeration</p>
+                            <div className="mt-2 flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                                <span className="text-[8px] text-slate-300 font-mono">STABILITY: CRITICAL</span>
+                            </div>
                         </div>
-                        <ResponsiveContainer width="100%" height="90%">
+
+                        {hoveredUnit && (
+                            <div className="absolute bottom-4 left-4 right-4 bg-sentinel-900/90 backdrop-blur p-2 rounded border border-white/10 text-center animate-in fade-in slide-in-from-bottom-2">
+                                <span className="text-xs font-bold text-white uppercase tracking-tighter">{hoveredUnit}</span>
+                            </div>
+                        )}
+                    </div>
+                    
+                    <div className="mt-4 grid grid-cols-3 gap-3">
+                         <div className="bg-sentinel-800/50 p-2 rounded-lg border border-white/5 flex flex-col items-center">
+                             <span className="text-[8px] text-slate-500 uppercase font-black">Core Exhumation</span>
+                             <span className="text-sm font-mono font-bold text-emerald-400">10 mm/yr</span>
+                         </div>
+                         <div className="bg-sentinel-800/50 p-2 rounded-lg border border-white/5 flex flex-col items-center">
+                             <span className="text-[8px] text-slate-500 uppercase font-black">Strain Balance</span>
+                             <span className="text-sm font-mono font-bold text-emerald-400">Stable</span>
+                         </div>
+                         <div className="bg-sentinel-800/50 p-2 rounded-lg border border-white/5 flex flex-col items-center">
+                             <span className="text-[8px] text-slate-500 uppercase font-black">Model Confidence</span>
+                             <span className="text-sm font-mono font-bold text-emerald-400">92%</span>
+                         </div>
+                    </div>
+                 </div>
+              ) : viewMode === 'geochron' ? (
+                  <div className="w-full h-full flex flex-col gap-4 overflow-y-auto custom-scrollbar p-2">
+                      <div className="h-64 flex-shrink-0 bg-sentinel-900/50 rounded-lg p-2 border border-sentinel-700/50 shadow-inner">
+                        <ResponsiveContainer width="100%" height="100%">
                             <ComposedChart data={COOLING_HISTORY} margin={{ top: 10, right: 30, bottom: 20, left: 20 }}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                                <XAxis 
-                                    type="number" 
-                                    dataKey="age" 
-                                    reversed 
-                                    domain={[0, 20]} 
-                                    label={{ value: 'Age (Ma)', position: 'insideBottom', offset: -10, fill: '#94a3b8', fontSize: 10 }} 
-                                    stroke="#94a3b8" 
-                                />
-                                <YAxis 
-                                    type="number" 
-                                    dataKey="temp" 
-                                    domain={[0, 800]} 
-                                    label={{ value: 'Temperature (°C)', angle: -90, position: 'insideLeft', fill: '#94a3b8', fontSize: 10 }} 
-                                    stroke="#94a3b8" 
-                                />
-                                <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', fontSize: '10px' }} cursor={{ strokeDasharray: '3 3' }} />
-                                <Line 
-                                    type="monotone" 
-                                    dataKey="temp" 
-                                    stroke="#2dd4bf" 
-                                    strokeWidth={2} 
-                                    dot={{ r: 4, fill: '#2dd4bf' }} 
-                                    activeDot={{ r: 6 }} 
-                                >
-                                    <LabelList dataKey="method" position="right" style={{ fill: '#94a3b8', fontSize: '9px' }} />
-                                </Line>
+                                <XAxis type="number" dataKey="age" reversed domain={[0, 20]} stroke="#94a3b8" />
+                                <YAxis type="number" dataKey="temp" domain={[0, 800]} stroke="#94a3b8" />
+                                <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', fontSize: '10px' }} />
+                                <Line type="monotone" dataKey="temp" stroke="#2dd4bf" strokeWidth={2} dot={{ r: 4, fill: '#2dd4bf' }} />
                             </ComposedChart>
                         </ResponsiveContainer>
                      </div>
 
-                     {/* Events Timeline - Interactive */}
-                     <div className="flex-1 bg-sentinel-900/50 rounded-lg p-4 border border-sentinel-700/50 overflow-y-auto">
-                        <div className="flex justify-between items-center mb-4">
-                            <h4 className="text-xs font-bold text-white uppercase tracking-wider">Key Tectonic Events</h4>
-                            <IconClock className="w-4 h-4 text-teal-500" />
-                        </div>
-                        <div className="relative border-l border-teal-500/30 ml-3 space-y-6 pb-2">
+                     <div className="flex-1 bg-sentinel-900/50 rounded-lg p-4 border border-sentinel-700/50 overflow-y-auto shadow-inner">
+                        <div className="space-y-4">
                             {GEOCHRON_EVENTS.map((event) => (
                                 <div 
                                     key={event.id} 
-                                    className={`relative pl-6 cursor-pointer transition-all duration-300 group ${selectedEvent?.id === event.id ? 'scale-105' : 'hover:opacity-80'}`}
-                                    onClick={() => setSelectedEvent(selectedEvent?.id === event.id ? null : event)}
+                                    className={`p-4 rounded-xl border transition-all cursor-pointer ${selectedEvent?.id === event.id ? 'bg-teal-500/10 border-teal-400 shadow-lg' : 'bg-sentinel-800 border-white/5 hover:border-white/10'}`}
+                                    onClick={() => { setSelectedEvent(event); handleAnalysis(event); }}
                                 >
-                                    {/* Timeline Dot */}
-                                    <div className={`absolute -left-1.5 top-1.5 w-3 h-3 rounded-full border-2 transition-colors ${selectedEvent?.id === event.id ? 'bg-teal-500 border-teal-300 shadow-[0_0_10px_rgba(20,184,166,0.5)]' : 'bg-sentinel-900 border-teal-500'}`}></div>
-                                    
-                                    {/* Card Body */}
-                                    <div className={`flex flex-col p-3 rounded-lg border transition-all ${selectedEvent?.id === event.id ? 'bg-sentinel-800 border-teal-500/50 shadow-lg' : 'border-transparent hover:bg-sentinel-800/50'}`}>
-                                        <span className="text-[10px] font-mono text-teal-400 font-bold bg-teal-500/10 px-1.5 py-0.5 rounded w-fit mb-1">{event.time}</span>
-                                        <span className="text-sm font-bold text-white">{event.event}</span>
-                                        <p className="text-xs text-slate-400 mt-1">{event.desc}</p>
-                                        
-                                        {/* Expanded details if selected */}
-                                        {selectedEvent?.id === event.id && (
-                                            <div className="mt-3 pt-2 border-t border-sentinel-700 animate-in fade-in slide-in-from-top-2">
-                                                <p className="text-[10px] text-slate-300 leading-relaxed italic mb-2">
-                                                    {event.details}
-                                                </p>
-                                                <div className="flex items-center gap-1 text-[9px] text-teal-400 uppercase font-bold bg-teal-500/5 p-1 rounded">
-                                                    <IconActivity className="w-3 h-3" />
-                                                    Ready for Deep Analysis
-                                                </div>
-                                            </div>
-                                        )}
+                                    <div className="flex justify-between items-center mb-2">
+                                        <span className="text-[10px] font-black font-mono text-teal-400 uppercase tracking-tighter">{event.time}</span>
+                                        <span className="text-[9px] text-slate-500 font-mono uppercase">{event.type}</span>
                                     </div>
+                                    <h4 className="text-sm font-bold text-white mb-1">{event.event}</h4>
+                                    <p className="text-xs text-slate-400 leading-relaxed">{event.desc}</p>
                                 </div>
                             ))}
                         </div>
                      </div>
                   </div>
               ) : (
-                 <div className="w-full h-full flex flex-col gap-4 overflow-y-auto custom-scrollbar pr-2">
-                     
-                     <div className="flex gap-4 h-[500px]">
-                         {/* Interactive Stratigraphic Column */}
-                         <div className="w-1/3 bg-sentinel-900/50 rounded-lg p-3 border border-sentinel-700/50 flex flex-col">
-                             <div className="flex justify-between items-center mb-2">
-                                <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Stratigraphy</h4>
-                                <span className="text-[10px] text-slate-500">Relative Thickness</span>
-                             </div>
-                             
+                 <div className="w-full h-full flex flex-col gap-4 overflow-y-auto custom-scrollbar p-2">
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-full">
+                         {/* Column 1: Stratigraphy */}
+                         <div className="bg-sentinel-900/50 rounded-lg p-4 border border-sentinel-700/50 flex flex-col shadow-inner">
+                             <h4 className="text-xs font-bold text-pink-400 uppercase tracking-widest mb-4">Stratigraphic Column</h4>
                              <div className="flex-1 relative flex">
-                                 {/* Time Scale Axis */}
-                                 <div className="w-8 flex flex-col justify-between text-[9px] text-slate-500 font-mono py-1 pr-1 border-r border-slate-700/50 text-right">
+                                 <div className="w-8 flex flex-col justify-between text-[9px] text-slate-600 font-mono py-1 pr-1 border-r border-slate-800">
                                      <span>0 Ma</span>
-                                     <span>10 Ma</span>
-                                     <span>50 Ma</span>
-                                     <span>500 Ma</span>
-                                     <span>1.8 Ga</span>
+                                     <span>2 Ga</span>
                                  </div>
-                                 
-                                 {/* SVG Column */}
                                  <div className="flex-1 relative ml-2">
                                      <svg width="100%" height="100%" preserveAspectRatio="none">
-                                         <defs>
-                                             {/* Granite Pattern */}
-                                             <pattern id="pat-granite" x="0" y="0" width="10" height="10" patternUnits="userSpaceOnUse">
-                                                 <rect width="10" height="10" fill="currentColor" fillOpacity="0.1"/>
-                                                 <circle cx="2" cy="2" r="1" fill="currentColor" fillOpacity="0.4"/>
-                                                 <circle cx="7" cy="7" r="1" fill="currentColor" fillOpacity="0.4"/>
-                                                 <path d="M5,2 L6,3 M8,5 L7,6" stroke="currentColor" strokeWidth="0.5" strokeOpacity="0.3"/>
-                                             </pattern>
-                                             {/* Gneiss Pattern (Wavy) */}
-                                             <pattern id="pat-gneiss" x="0" y="0" width="20" height="10" patternUnits="userSpaceOnUse">
-                                                  <rect width="20" height="10" fill="currentColor" fillOpacity="0.1"/>
-                                                  <path d="M0,5 Q5,2 10,5 T20,5" stroke="currentColor" strokeWidth="0.5" fill="none" strokeOpacity="0.4"/>
-                                             </pattern>
-                                             {/* Sediment Pattern (Brick/Block) */}
-                                             <pattern id="pat-sediment" x="0" y="0" width="20" height="10" patternUnits="userSpaceOnUse">
-                                                 <rect width="20" height="10" fill="currentColor" fillOpacity="0.1"/>
-                                                 <path d="M0,10 L20,10 M10,0 L10,10" stroke="currentColor" strokeWidth="0.5" strokeOpacity="0.4"/>
-                                             </pattern>
-                                              {/* Mafic Pattern (Darker Dashes) */}
-                                             <pattern id="pat-mafic" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse">
-                                                  <rect width="8" height="8" fill="currentColor" fillOpacity="0.2"/>
-                                                  <path d="M0,8 L8,0" stroke="currentColor" strokeWidth="1" strokeOpacity="0.3"/>
-                                             </pattern>
-                                         </defs>
-                                         
                                          {PETROLOGY_UNITS.map((unit, index) => {
-                                             // Calculate Y position based on previous heights
                                              const prevHeight = PETROLOGY_UNITS.slice(0, index).reduce((acc, u) => acc + u.height, 0);
                                              return (
                                                  <g 
                                                     key={unit.id}
                                                     onClick={() => setActiveUnit(activeUnit?.id === unit.id ? null : unit)}
-                                                    className="cursor-pointer hover:opacity-90 transition-opacity"
+                                                    className="cursor-pointer group"
                                                  >
                                                      <rect 
                                                         x="0" 
@@ -769,31 +728,10 @@ const TectonicsView: React.FC = () => {
                                                         fill={unit.color}
                                                         stroke="#0f172a"
                                                         strokeWidth="1"
+                                                        className="transition-all group-hover:opacity-90"
                                                      />
-                                                     {/* Pattern Overlay */}
-                                                     <rect 
-                                                        x="0" 
-                                                        y={`${prevHeight}%`} 
-                                                        width="100%" 
-                                                        height={`${unit.height}%`} 
-                                                        fill={`url(#pat-${unit.pattern})`}
-                                                        className={activeUnit?.id === unit.id ? 'text-white' : 'text-slate-900'}
-                                                        style={{ mixBlendMode: 'overlay' }}
-                                                     />
-                                                     
-                                                     {/* Label inside bar */}
-                                                     <text 
-                                                        x="50%" 
-                                                        y={`${prevHeight + (unit.height/2)}%`} 
-                                                        dominantBaseline="middle" 
-                                                        textAnchor="middle" 
-                                                        fill={unit.pattern === 'mafic' ? 'white' : 'black'} 
-                                                        fontSize="10" 
-                                                        fontWeight="bold"
-                                                        className="pointer-events-none drop-shadow-md opacity-0 hover:opacity-100 md:opacity-100"
-                                                        style={{ textShadow: '0px 0px 4px rgba(255,255,255,0.5)' }}
-                                                     >
-                                                         {unit.id.toUpperCase()}
+                                                     <text x="50%" y={`${prevHeight + unit.height/2}%`} dominantBaseline="middle" textAnchor="middle" fontSize="8" className="font-bold fill-sentinel-900 pointer-events-none uppercase">
+                                                         {unit.id}
                                                      </text>
                                                  </g>
                                              );
@@ -803,74 +741,26 @@ const TectonicsView: React.FC = () => {
                              </div>
                          </div>
                          
-                         {/* Charts & Details Column */}
-                         <div className="w-2/3 flex flex-col gap-4 overflow-y-auto pr-1">
-                             {/* Detail Card (Contextual) */}
-                             <div className={`p-4 rounded-lg border transition-all duration-300 ${
-                                 activeUnit 
-                                 ? 'bg-sentinel-800 border-pink-500/50 shadow-[0_0_15px_rgba(236,72,153,0.1)]' 
-                                 : 'bg-sentinel-900/30 border-dashed border-slate-700'
-                             }`}>
-                                 {activeUnit ? (
-                                     <div className="animate-in fade-in slide-in-from-left-2">
-                                         <div className="flex justify-between items-start mb-2">
-                                            <div>
-                                                <h4 className="text-lg font-bold text-white flex items-center gap-2">
-                                                    <span className="w-3 h-3 rounded-full" style={{ backgroundColor: activeUnit.color }}></span>
-                                                    {activeUnit.name}
-                                                </h4>
-                                                <p className="text-xs font-mono text-pink-400">{activeUnit.age} • {activeUnit.type}</p>
-                                            </div>
-                                            <button onClick={() => setActiveUnit(null)} className="text-slate-500 hover:text-white">
-                                                <IconX className="w-4 h-4" />
-                                            </button>
-                                         </div>
-                                         <p className="text-sm text-slate-300 mb-3 leading-relaxed">{activeUnit.desc}</p>
-                                         <div className="bg-sentinel-900 p-2 rounded border border-sentinel-700">
-                                             <p className="text-[10px] text-slate-500 uppercase font-bold mb-1">Key Mineral Assemblage</p>
-                                             <p className="text-xs font-mono text-emerald-300">{activeUnit.minerals}</p>
-                                         </div>
-                                     </div>
-                                 ) : (
-                                     <div className="h-full flex flex-col items-center justify-center text-slate-500 py-6">
-                                         <IconLayers className="w-8 h-8 mb-2 opacity-20" />
-                                         <p className="text-xs">Select a unit from the column to view petrological details</p>
-                                     </div>
-                                 )}
-                             </div>
-
-                             {/* P-T Path Chart */}
-                             <div className="h-48 flex-shrink-0 bg-sentinel-900/50 rounded-lg p-2 border border-sentinel-700/50">
-                                <div className="flex justify-between items-center px-2 mb-2">
-                                    <h4 className="text-xs font-bold text-pink-400 uppercase tracking-wider">Metamorphic P-T Path</h4>
-                                    <span className="text-[10px] text-slate-500">Decompression Trajectory</span>
-                                </div>
+                         {/* Column 2: Data Visuals */}
+                         <div className="flex flex-col gap-4">
+                             <div className="h-48 bg-sentinel-900/50 rounded-lg p-3 border border-sentinel-700/50 shadow-inner">
+                                <h4 className="text-[10px] font-bold text-pink-400 uppercase mb-2">Metamorphic P-T Path</h4>
                                 <ResponsiveContainer width="100%" height="85%">
-                                    <ComposedChart data={PT_PATH_DATA} margin={{ top: 10, right: 30, bottom: 20, left: 0 }}>
+                                    <ComposedChart data={PT_PATH_DATA}>
                                         <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                                        <XAxis type="number" dataKey="temp" domain={[200, 900]} label={{ value: 'T (°C)', position: 'insideBottom', offset: -10, fill: '#94a3b8', fontSize: 10 }} stroke="#94a3b8" tick={{fontSize: 10}} />
-                                        <YAxis type="number" dataKey="pressure" reversed domain={[0, 12]} label={{ value: 'P (kbar)', angle: -90, position: 'insideLeft', fill: '#94a3b8', fontSize: 10 }} stroke="#94a3b8" tick={{fontSize: 10}} />
-                                        <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', fontSize: '10px' }} cursor={{ strokeDasharray: '3 3' }} />
+                                        <XAxis type="number" dataKey="temp" domain={[200, 900]} stroke="#94a3b8" tick={{fontSize: 9}} />
+                                        <YAxis type="number" dataKey="pressure" reversed domain={[0, 12]} stroke="#94a3b8" tick={{fontSize: 9}} />
                                         <Line type="natural" dataKey="pressure" stroke="#f472b6" strokeWidth={2} dot={{ r: 3, fill: '#f472b6' }} />
                                     </ComposedChart>
                                 </ResponsiveContainer>
                              </div>
-
-                             {/* Geochem Chart */}
-                             <div className="h-48 flex-shrink-0 bg-sentinel-900/50 rounded-lg p-2 border border-sentinel-700/50">
-                                <div className="flex justify-between items-center px-2 mb-2">
-                                    <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider">Geochemistry</h4>
-                                    <span className="text-[10px] text-slate-500">Major Oxides (Wt%)</span>
-                                </div>
-                                <ResponsiveContainer width="100%" height="85%">
-                                    <BarChart data={GEOCHEM_DATA} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-                                        <XAxis dataKey="name" stroke="#94a3b8" tick={{ fontSize: 10 }} />
-                                        <YAxis stroke="#94a3b8" tick={{ fontSize: 10 }} />
-                                        <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', fontSize: '10px' }} cursor={{fill: '#1e293b'}} />
-                                        <Legend wrapperStyle={{ fontSize: '10px' }} />
-                                        <Bar dataKey="gneiss" name="Gneiss" fill="#64748b" />
-                                        <Bar dataKey="leuco" name="Leucogranite" fill="#f472b6" />
+                             <div className="flex-1 bg-sentinel-900/50 rounded-lg p-3 border border-sentinel-700/50 shadow-inner">
+                                <h4 className="text-[10px] font-bold text-indigo-400 uppercase mb-2">SiO2 vs Geochem Units</h4>
+                                <ResponsiveContainer width="100%" height="80%">
+                                    <BarChart data={GEOCHEM_DATA} margin={{ left: -30 }}>
+                                        <XAxis dataKey="name" stroke="#94a3b8" tick={{ fontSize: 9 }} />
+                                        <Bar dataKey="gneiss" fill="#64748b" radius={[2, 2, 0, 0]} />
+                                        <Bar dataKey="leuco" fill="#f472b6" radius={[2, 2, 0, 0]} />
                                     </BarChart>
                                 </ResponsiveContainer>
                              </div>
@@ -881,31 +771,37 @@ const TectonicsView: React.FC = () => {
            </div>
         </div>
 
-        {/* Metrics Row */}
+        {/* Real-time Tectonic Metrics */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 flex-shrink-0">
-             <div className="bg-sentinel-800 p-4 rounded-xl border border-sentinel-700">
-                 <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Convergence Rate</p>
-                 <p className="text-2xl font-mono text-white">38 <span className="text-xs text-slate-500">mm/yr</span></p>
+             <div className="bg-sentinel-800 p-4 rounded-xl border border-sentinel-700 shadow-lg group hover:border-orange-500/50 transition-colors">
+                 <p className="text-[10px] text-slate-500 uppercase font-black mb-1 group-hover:text-orange-400 transition-colors">Convergence</p>
+                 <div className="flex items-baseline gap-1">
+                     <p className="text-2xl font-mono font-bold text-white tracking-tighter">38.2</p>
+                     <span className="text-[10px] text-slate-500">mm/yr</span>
+                 </div>
                  <div className="w-full bg-sentinel-900 h-1 mt-2 rounded-full overflow-hidden">
-                     <div className="bg-sky-500 h-full w-[80%]"></div>
+                     <div className="bg-sky-500 h-full w-[80%] animate-pulse"></div>
                  </div>
              </div>
-             <div className="bg-sentinel-800 p-4 rounded-xl border border-sentinel-700">
-                 <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Max Uplift</p>
-                 <p className="text-2xl font-mono text-orange-400">12 <span className="text-xs text-slate-500">mm/yr</span></p>
+             <div className="bg-sentinel-800 p-4 rounded-xl border border-sentinel-700 shadow-lg group hover:border-orange-500/50 transition-colors">
+                 <p className="text-[10px] text-slate-500 uppercase font-black mb-1 group-hover:text-orange-400 transition-colors">Exhumation</p>
+                 <div className="flex items-baseline gap-1">
+                     <p className="text-2xl font-mono font-bold text-orange-400 tracking-tighter">+10.5</p>
+                     <span className="text-[10px] text-slate-500">mm/yr</span>
+                 </div>
                  <div className="w-full bg-sentinel-900 h-1 mt-2 rounded-full overflow-hidden">
                      <div className="bg-orange-500 h-full w-[95%]"></div>
                  </div>
              </div>
-             <div className="bg-sentinel-800 p-4 rounded-xl border border-sentinel-700">
-                 <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Seismic Strain</p>
-                 <p className="text-2xl font-mono text-red-400">High</p>
-                 <p className="text-[10px] text-slate-500 mt-1">Locked Segment</p>
+             <div className="bg-sentinel-800 p-4 rounded-xl border border-sentinel-700 shadow-lg group hover:border-red-500/50 transition-colors">
+                 <p className="text-[10px] text-slate-500 uppercase font-black mb-1 group-hover:text-red-400 transition-colors">Locked Segments</p>
+                 <p className="text-2xl font-mono font-bold text-red-500 tracking-tighter">42%</p>
+                 <p className="text-[8px] text-slate-600 mt-1 font-bold">Strain Gradient: High</p>
              </div>
-             <div className="bg-sentinel-800 p-4 rounded-xl border border-sentinel-700">
-                 <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Moho Depth</p>
-                 <p className="text-2xl font-mono text-emerald-400">65 <span className="text-xs text-slate-500">km</span></p>
-                 <p className="text-[10px] text-slate-500 mt-1">Crustal Root</p>
+             <div className="bg-sentinel-800 p-4 rounded-xl border border-sentinel-700 shadow-lg group hover:border-emerald-500/50 transition-colors">
+                 <p className="text-[10px] text-slate-500 uppercase font-black mb-1 group-hover:text-emerald-400 transition-colors">Moho Delta</p>
+                 <p className="text-2xl font-mono font-bold text-emerald-500 tracking-tighter">65km</p>
+                 <p className="text-[8px] text-slate-600 mt-1 font-bold">Crustal Root Profile</p>
              </div>
         </div>
 
@@ -917,9 +813,9 @@ const TectonicsView: React.FC = () => {
           title={getAnalysisTitle()}
           markdown={aiState.markdown} 
           loading={aiState.loading} 
-          onAnalyze={handleAnalysis}
+          onAnalyze={() => handleAnalysis(selectedGps || activeFault || selectedEvent)}
           onExport={handleExport}
-          onSave={() => console.log('Saved')}
+          onSave={() => {}}
           isThinking={aiState.isThinking}
         />
       </div>

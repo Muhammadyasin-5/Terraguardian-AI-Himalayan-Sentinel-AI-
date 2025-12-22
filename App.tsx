@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { AnalysisMode } from './types';
 import Dashboard from './components/Dashboard';
@@ -171,10 +172,6 @@ const App: React.FC = () => {
               <span className="block font-bold text-slate-600 mb-0.5">Built and developed by</span>
               <span className="text-slate-400 block font-bold">Muhammad Yasin Khan</span>
               <span className="text-slate-500 block text-[9px] mt-0.5">Institute of Geology; University of Azad Jammu and Kashmir, Muzaffarbad, Pakistan</span>
-            </div>
-            <div className="mb-2">
-              <span className="block font-bold text-slate-600 mb-0.5">LEARNING PLATFORM</span>
-              <span className="text-slate-400 block">Urdu AI</span>
             </div>
             <div className="mb-2">
               <span className="block font-bold text-slate-600 mb-0.5">ADDRESS</span>

@@ -1,50 +1,45 @@
-import React, { useState, useRef, useEffect } from 'react';
+
+import React, { useState, useMemo } from 'react';
 import { Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ComposedChart, Legend, AreaChart, Area } from 'recharts';
 import AnalysisPanel from './AnalysisPanel';
 import ReactMarkdown from 'react-markdown';
 import { generateDeepThinkingInsight } from '../services/geminiService';
 import { AiResponse } from '../types';
-import { IconAlertTriangle, IconGlobe, IconCpu, IconHistory, IconX, IconMountain, IconSnowflake, IconSave, IconCheck, IconActivity, IconMap, IconWind } from './Icons';
+import { IconAlertTriangle, IconGlobe, IconCpu, IconHistory, IconX, IconMountain, IconSnowflake, IconSave, IconCheck, IconActivity } from './Icons';
 
-const riskData = [
-  { zone: 'Rakhiot Face', risk: 85, lastScan: 72, depth: '2.4m', trend: 'Unstable' },
-  { zone: 'Diamir Base', risk: 45, lastScan: 40, depth: '1.1m', trend: 'Stable' },
-  { zone: 'Rupal Face', risk: 92, lastScan: 88, depth: '3.1m', trend: 'Critical' },
-  { zone: 'Fairy Meadows', risk: 30, lastScan: 35, depth: '0.8m', trend: 'Low Risk' },
-  { zone: 'Mazeno Ridge', risk: 65, lastScan: 55, depth: '1.8m', trend: 'High Risk' },
+// Consolidated Sector Data - The Single Source of Truth
+const SECTOR_DATA = [
+  { zone: 'Rakhiot Face', risk: 85, lastScan: 72, depth: '2.4m', precip: '12mm', temp: '-14°C', trend: 'Unstable' },
+  { zone: 'Diamir Base', risk: 45, lastScan: 40, depth: '1.1m', precip: '5mm', temp: '-8°C', trend: 'Stable' },
+  { zone: 'Rupal Face', risk: 92, lastScan: 88, depth: '3.1m', precip: '28mm', temp: '-18°C', trend: 'Critical' },
+  { zone: 'Fairy Meadows', risk: 30, lastScan: 35, depth: '0.8m', precip: '2mm', temp: '-4°C', trend: 'Low Risk' },
+  { zone: 'Mazeno Ridge', risk: 65, lastScan: 55, depth: '1.8m', precip: '15mm', temp: '-12°C', trend: 'High Risk' },
 ];
 
-const telemetryData = [
-  { zone: 'Rakhiot Face', depth: '2.4m', precip: '12mm', temp: '-14°C', trend: 'Unstable' },
-  { zone: 'Diamir Base', depth: '1.1m', precip: '5mm', temp: '-8°C', trend: 'Stable' },
-  { zone: 'Rupal Face', depth: '3.1m', precip: '28mm', temp: '-18°C', trend: 'Critical' },
-  { zone: 'Fairy Meadows', depth: '0.8m', precip: '2mm', temp: '-4°C', trend: 'Low Risk' },
-  { zone: 'Mazeno Ridge', depth: '1.8m', precip: '15mm', temp: '-12°C', trend: 'High Risk' },
-];
-
-// Generate synthetic trend data for the mini-charts
-const generateTrendData = (baseDepthStr: string) => {
-  const base = parseFloat(baseDepthStr.replace(/[^\d.-]/g, ''));
-  return Array.from({ length: 24 }, (_, i) => {
-    // Simulate accumulation + sensor noise over 24h
-    const trend = (i / 24) * 0.15; // +15cm over 24h
-    const noise = (Math.sin(i * 0.5) * 0.02) + (Math.random() * 0.01);
-    return {
-      hour: i,
-      depth: Math.max(0, Number((base - 0.15 + trend + noise).toFixed(3)))
-    };
-  });
+// Helper to generate synthetic historical data for sparklines
+const generateHistory = (baseValue: string) => {
+  const base = parseFloat(baseValue.replace(/[^\d.-]/g, ''));
+  return Array.from({ length: 12 }, (_, i) => ({
+    time: i,
+    val: Number((base + (Math.sin(i * 0.8) * 0.2) + (Math.random() * 0.1)).toFixed(2))
+  }));
 };
 
-const zoneTrends = telemetryData.reduce((acc, curr) => {
-  acc[curr.zone] = generateTrendData(curr.depth);
+const SECTOR_HISTORY = SECTOR_DATA.reduce((acc, sector) => {
+  acc[sector.zone] = generateHistory(sector.depth);
   return acc;
-}, {} as Record<string, {hour: number, depth: number}[]>);
+}, {} as Record<string, { time: number, val: number }[]>);
 
 const getRiskColor = (val: number) => {
   if (val > 80) return '#ef4444'; // Red
   if (val > 50) return '#f59e0b'; // Orange
   return '#10b981'; // Green
+};
+
+const getTrendColor = (trend: string) => {
+  if (trend === 'Critical') return '#ef4444';
+  if (trend === 'Unstable' || trend === 'High Risk') return '#f59e0b';
+  return '#10b981';
 };
 
 interface AlertLogEntry {
@@ -64,75 +59,41 @@ const AvalancheView: React.FC = () => {
     isThinking: false
   });
 
-  // Configuration State
   const [alertThreshold, setAlertThreshold] = useState<number>(75);
   const [audience, setAudience] = useState<'researchers' | 'communities' | 'public'>('researchers');
   const [showLastScan, setShowLastScan] = useState(false);
-
-  // History State
   const [history, setHistory] = useState<AlertLogEntry[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [expandedLogId, setExpandedLogId] = useState<number | null>(null);
-  const [historySaved, setHistorySaved] = useState(false);
-
-  // Simulation State
-  const [isCriticalRisk, setIsCriticalRisk] = useState(false);
   const [showRunoutSim, setShowRunoutSim] = useState(false);
+
+  const isCriticalRisk = useMemo(() => SECTOR_DATA.some(s => s.risk > 80), []);
 
   const handleAnalysis = async () => {
     setAiState({ ...aiState, loading: true, isThinking: true });
     
-    // Check max risk to conditionally add advisory and enable simulation
-    const currentMaxRisk = Math.max(...riskData.map(z => z.risk));
-    const isHighRisk = currentMaxRisk > 50;
-    const criticalCheck = currentMaxRisk > 80;
-    
-    setIsCriticalRisk(criticalCheck);
-
-    const includeAdvisory = audience === 'public' && isHighRisk;
-
     const prompt = `
       Current Avalanche Risk Assessment for Nanga Parbat Sectors:
-      ${JSON.stringify(riskData)}
+      ${JSON.stringify(SECTOR_DATA)}
       
       User Configuration:
-      - Risk Threshold for Alerts: >${alertThreshold}%
-      - Notification Target Audience: ${audience.toUpperCase()}
+      - Alert Threshold: >${alertThreshold}%
+      - Audience: ${audience.toUpperCase()}
       
-      Recent weather: Heavy snowfall (48h), Temp -12C rising to -2C.
-      
-      Tasks:
-      1. Analyze the risk data. Identify ALL zones exceeding the ${alertThreshold}% threshold.
-      2. For the identified high-risk zones, draft a specific alert message based on the audience:
-         - IF AUDIENCE IS RESEARCHERS: Use glaciological terminology, discuss specific shear stress factors, weak layer depth (hoar frost), and crystal metamorphism.
-         - IF AUDIENCE IS COMMUNITIES: Use simple, urgent language. Focus on evacuation orders, road closures (KKH), and immediate safety actions. Avoid jargon.
-         - IF AUDIENCE IS PUBLIC: Focus on travel advisories for tourists, trekkers, and climbers. Emphasize "Go/No-Go" decisions for specific routes, base camp safety, and hiking permits.
-      3. Explain the underlying snowpack instability mechanisms driving these specific risks.
-      4. Provide a 24-hour forecast window for travel safety.
-      ${includeAdvisory ? `
-      5. **MANDATORY GO/NO-GO ADVISORY**:
-         Since the risk level is HIGH/CRITICAL and the audience is PUBLIC, you MUST append a distinct markdown section at the end titled "**## GO/NO-GO ADVISORY**".
-         - List each major sector (Rakhiot, Diamir, Rupal, Fairy Meadows, Mazeno).
-         - Assign a clear status: "✅ GO", "⚠️ CAUTION", or "⛔ NO-GO".
-         - Provide a 1-sentence justification for each based on the risk percentage and trends provided.
-      ` : ''}
+      Analyze the stability of each sector and provide tactical recommendations.
     `;
 
     const result = await generateDeepThinkingInsight(prompt);
     
     // Log the alert
-    const affectedZones = riskData.filter(z => z.risk > alertThreshold).map(z => z.zone);
-    const maxRiskVal = Math.max(...riskData.filter(z => z.risk > alertThreshold).map(z => z.risk), 0);
-    let riskLevel: AlertLogEntry['riskLevel'] = 'Low';
-    if (maxRiskVal > 80) riskLevel = 'Critical';
-    else if (maxRiskVal > 50) riskLevel = 'High';
-    else if (affectedZones.length > 0) riskLevel = 'Moderate';
-
+    const affectedZones = SECTOR_DATA.filter(z => z.risk > alertThreshold).map(z => z.zone);
+    const maxRiskVal = Math.max(...SECTOR_DATA.map(z => z.risk), 0);
+    
     const newLog: AlertLogEntry = {
       id: Date.now(),
       timestamp: new Date().toLocaleString(),
       zones: affectedZones,
-      riskLevel,
+      riskLevel: maxRiskVal > 80 ? 'Critical' : maxRiskVal > 50 ? 'High' : 'Low',
       message: result,
       threshold: alertThreshold,
       audience
@@ -142,164 +103,39 @@ const AvalancheView: React.FC = () => {
     setAiState({ markdown: result, loading: false, isThinking: false });
   };
 
-  const handleExport = () => {
-    const dataToExport = {
-      reportType: "Avalanche Risk Assessment",
-      generatedAt: new Date().toISOString(),
-      configuration: {
-          threshold: alertThreshold,
-          audience: audience
-      },
-      currentRiskProfile: riskData,
-      alertHistory: history,
-      latestAnalysis: aiState.markdown || "No analysis generated yet."
-    };
-    
-    const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `sentinel_avalanche_report_${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  const handleSave = () => {
-    // Save report to localStorage with comprehensive metadata
-    const report = {
-        id: Date.now(),
-        type: 'AVALANCHE_RISK',
-        content: aiState.markdown,
-        timestamp: new Date().toISOString(),
-        metadata: {
-            configuration: {
-                threshold: alertThreshold,
-                audience: audience
-            },
-            riskProfile: riskData,
-            alertHistory: history,
-            telemetry: telemetryData
-        }
-    };
-    
-    const existing = localStorage.getItem('sentinel_reports');
-    const reports = existing ? JSON.parse(existing) : [];
-    reports.push(report);
-    localStorage.setItem('sentinel_reports', JSON.stringify(reports));
-  };
-
-  const handleSaveAllLogs = () => {
-    const existing = localStorage.getItem('sentinel_reports');
-    const reports = existing ? JSON.parse(existing) : [];
-    
-    const logsToSave = history.map(log => ({
-        id: Date.now() + Math.random(), // Ensure unique ID
-        type: 'AVALANCHE_RISK_LOG',
-        content: log.message,
-        timestamp: new Date().toISOString(),
-        metadata: {
-            logTimestamp: log.timestamp,
-            riskLevel: log.riskLevel,
-            affectedZones: log.zones,
-            configuration: {
-                threshold: log.threshold,
-                audience: log.audience
-            }
-        }
-    }));
-    
-    localStorage.setItem('sentinel_reports', JSON.stringify([...reports, ...logsToSave]));
-    setHistorySaved(true);
-    setTimeout(() => setHistorySaved(false), 2000);
-  };
-
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      return (
-        <div className="bg-sentinel-900 border border-sentinel-700 p-4 rounded-lg shadow-xl min-w-[180px]">
-          <p className="text-white font-bold mb-2">{label}</p>
-          <div className="space-y-1">
-            {payload.map((p: any, i: number) => (
-              <div key={i} className="flex items-center justify-between gap-4">
-                <span className="text-sm text-slate-400">{p.dataKey === 'risk' ? 'Current Risk' : 'Last Scan'}:</span>
-                <span className="text-sm font-mono font-bold" style={{ color: p.color }}>
-                  {p.value}%
-                </span>
-              </div>
-            ))}
-            
-            <div className="mt-3 pt-2 border-t border-sentinel-700/50 flex flex-col gap-1.5">
-                <div className="flex justify-between items-center">
-                    <span className="text-xs text-slate-400">Snow Depth:</span>
-                    <span className="text-xs text-white font-mono">{data.depth}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                    <span className="text-xs text-slate-400">Stability Trend:</span>
-                    <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
-                        data.trend === 'Critical' ? 'bg-red-500/10 text-red-400' : 
-                        data.trend === 'Unstable' || data.trend === 'High Risk' ? 'bg-orange-500/10 text-orange-400' : 
-                        'bg-emerald-500/10 text-emerald-400'
-                    }`}>
-                        {data.trend}
-                    </span>
-                </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-    return null;
-  };
-
   return (
     <div className="relative h-full">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full p-6 overflow-hidden">
-        {/* Visual Column - Scrollable */}
+        {/* Visual Column */}
         <div className="flex flex-col gap-6 h-full overflow-y-auto pr-2 custom-scrollbar">
-          {/* Risk Chart */}
+          
+          {/* Risk Profile Card */}
           <div className="bg-sentinel-800 p-6 rounded-xl border border-sentinel-700 shadow-lg flex-shrink-0">
             <div className="flex justify-between items-start mb-6">
               <div>
-                  <h3 className="text-xl font-bold text-white mb-1">Regional Risk Profile</h3>
-                  <p className="text-slate-400 text-sm">Real-time snowpack telemetry probability.</p>
+                <h3 className="text-xl font-bold text-white mb-1">Regional Risk Profile</h3>
+                <p className="text-slate-400 text-sm">Aggregated probability of slab release.</p>
               </div>
-              <div className="flex flex-col items-end gap-2">
-                 <div className="px-3 py-1 bg-sentinel-900 rounded border border-sentinel-700 text-xs font-mono text-emerald-400 animate-pulse border-emerald-500/30">
-                     LIVE FEED
-                 </div>
-                 
-                 <button 
-                    onClick={() => setShowLastScan(!showLastScan)}
-                    className="flex items-center gap-2 group cursor-pointer focus:outline-none"
-                    title="Toggle comparison with previous scan data"
-                 >
-                    <span className={`text-xs transition-colors ${showLastScan ? 'text-sky-400 font-medium' : 'text-slate-400 group-hover:text-slate-300'}`}>
-                        Compare Last Scan
-                    </span>
-                    <div className={`w-9 h-5 rounded-full p-1 transition-colors duration-200 ease-in-out ${showLastScan ? 'bg-sky-600' : 'bg-sentinel-700 border border-sentinel-600'}`}>
-                        <div className={`w-3 h-3 bg-white rounded-full shadow-sm transform transition-transform duration-200 ${showLastScan ? 'translate-x-4' : 'translate-x-0'}`} />
-                    </div>
-                 </button>
-              </div>
+              <button 
+                onClick={() => setShowLastScan(!showLastScan)}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all border ${showLastScan ? 'bg-sky-600 border-sky-500 text-white' : 'bg-sentinel-900 border-sentinel-700 text-slate-400'}`}
+              >
+                {showLastScan ? 'HIDDEN COMPARISON' : 'COMPARE LAST SCAN'}
+              </button>
             </div>
-            <div className="h-[280px] w-full">
+            <div className="h-64 w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={riskData} layout="vertical" margin={{ top: 0, right: 20, bottom: 0, left: 20 }}>
+                <ComposedChart data={SECTOR_DATA} layout="vertical" margin={{ left: 20, right: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#334155" horizontal={false} />
                   <XAxis type="number" domain={[0, 100]} stroke="#94a3b8" />
-                  <YAxis dataKey="zone" type="category" stroke="#f8fafc" width={100} tick={{fontSize: 12}} />
-                  <Tooltip content={<CustomTooltip />} cursor={{fill: '#334155', opacity: 0.2}} />
-                  <Legend verticalAlign="top" height={36} iconType="circle" />
-                  
-                  {showLastScan && (
-                      <Bar dataKey="lastScan" name="Last Scan (24h ago)" barSize={12} fill="#64748b" radius={[0, 4, 4, 0]} animationDuration={500} />
-                  )}
-                  
-                  <Bar dataKey="risk" name="Current Risk Probability" barSize={20} radius={[0, 4, 4, 0]} animationDuration={500}>
-                    {riskData.map((entry, index) => (
+                  <YAxis dataKey="zone" type="category" stroke="#f8fafc" width={100} tick={{ fontSize: 11 }} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155' }}
+                    itemStyle={{ fontSize: '12px' }}
+                  />
+                  {showLastScan && <Bar dataKey="lastScan" name="Last Scan" fill="#475569" barSize={10} radius={[0, 2, 2, 0]} />}
+                  <Bar dataKey="risk" name="Current Risk" barSize={20} radius={[0, 4, 4, 0]}>
+                    {SECTOR_DATA.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={getRiskColor(entry.risk)} />
                     ))}
                   </Bar>
@@ -308,558 +144,166 @@ const AvalancheView: React.FC = () => {
             </div>
           </div>
 
-          {/* CRITICAL ACTION: SIMULATION TRIGGER */}
-          {isCriticalRisk && (
-              <div className="bg-red-500/10 border border-red-500/30 p-4 rounded-xl flex items-center justify-between shadow-[0_0_20px_rgba(239,68,68,0.15)] animate-in fade-in slide-in-from-top-4">
-                  <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-red-500/20 rounded-full flex items-center justify-center animate-pulse">
-                          <IconAlertTriangle className="w-6 h-6 text-red-500" />
-                      </div>
-                      <div>
-                          <h4 className="text-red-400 font-bold text-sm">CRITICAL INSTABILITY DETECTED</h4>
-                          <p className="text-slate-400 text-xs">Run physics model to determine runout zones.</p>
-                      </div>
-                  </div>
-                  <button 
-                      onClick={() => setShowRunoutSim(true)}
-                      className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-lg shadow-lg flex items-center gap-2 transition-all hover:scale-105"
-                  >
-                      <IconActivity className="w-4 h-4" />
-                      SIMULATE RUNOUT PATH
-                  </button>
-              </div>
-          )}
-
-          {/* Detailed Telemetry Section */}
+          {/* Unified Telemetry & Trends List */}
           <div className="bg-sentinel-800 p-6 rounded-xl border border-sentinel-700 shadow-lg flex-shrink-0">
-             <div className="flex justify-between items-center mb-4">
-                <h4 className="text-white font-bold flex items-center gap-2">
-                   <IconSnowflake className="w-5 h-5 text-sky-400" />
-                   Sector Telemetry
-                </h4>
-                <span className="text-[10px] font-mono text-slate-500 uppercase">Live Sensor Feed</span>
-             </div>
-             
-             <div className="grid grid-cols-1 gap-3">
-                {telemetryData.map((t, i) => (
-                   <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-sentinel-900/50 border border-sentinel-700/50 hover:border-sky-500/30 transition-all group">
-                      <div className="flex flex-col">
-                         <span className="text-sm font-bold text-slate-200 group-hover:text-sky-300 transition-colors">{t.zone}</span>
-                         <div className="flex items-center gap-4 mt-1">
-                            <span className="text-xs text-slate-400 font-mono flex items-center gap-1.5" title="Snow Depth">
-                               <span className="text-sky-500">↕</span> {t.depth}
-                            </span>
-                            <span className="text-xs text-slate-400 font-mono flex items-center gap-1.5" title="Precipitation (24h)">
-                               <span className="text-indigo-400">💧</span> {t.precip}
-                            </span>
-                            <span className="text-xs text-slate-400 font-mono flex items-center gap-1.5" title="Temperature">
-                               <span className="text-rose-400">🌡</span> {t.temp}
-                            </span>
-                         </div>
-                      </div>
-                      <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border ${
-                           t.trend === 'Critical' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
-                           t.trend === 'Unstable' || t.trend === 'High Risk' ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' :
-                           'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                      }`}>
-                          {t.trend}
-                      </div>
-                   </div>
-                ))}
-             </div>
-          </div>
-
-          {/* NEW SECTION: Snow Depth Trends */}
-          <div className="bg-sentinel-800 p-6 rounded-xl border border-sentinel-700 shadow-lg flex-shrink-0">
-             <div className="flex justify-between items-center mb-4">
-                <h4 className="text-white font-bold flex items-center gap-2">
-                   <IconActivity className="w-5 h-5 text-indigo-400" />
-                   24h Snow Accumulation
-                </h4>
-             </div>
-             
-             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {telemetryData.map((t, i) => (
-                   <div key={i} className="p-3 rounded-lg bg-sentinel-900/50 border border-sentinel-700/50 hover:border-indigo-500/30 transition-all flex flex-col justify-between h-28">
-                      <div className="flex justify-between items-start">
-                         <div>
-                             <span className="text-xs font-bold text-slate-300 block">{t.zone}</span>
-                             <span className="text-[10px] text-slate-500 font-mono">RATE: +1.2cm/h</span>
-                         </div>
-                         <span className="text-sm font-mono font-bold text-indigo-300">{t.depth}</span>
-                      </div>
-                      <div className="h-14 w-full mt-2">
-                         <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={zoneTrends[t.zone]}>
-                               <defs>
-                                  <linearGradient id={`trendGradient-${i}`} x1="0" y1="0" x2="0" y2="1">
-                                     <stop offset="5%" stopColor="#818cf8" stopOpacity={0.4}/>
-                                     <stop offset="95%" stopColor="#818cf8" stopOpacity={0}/>
-                                  </linearGradient>
-                               </defs>
-                               <Area 
-                                  type="monotone" 
-                                  dataKey="depth" 
-                                  stroke="#818cf8" 
-                                  strokeWidth={2} 
-                                  fill={`url(#trendGradient-${i})`} 
-                                  isAnimationActive={true}
-                                  animationDuration={1500}
-                               />
-                            </AreaChart>
-                         </ResponsiveContainer>
-                      </div>
-                   </div>
-                ))}
-             </div>
-          </div>
-
-          {/* Configuration Panel */}
-          <div className="bg-sentinel-800 p-6 rounded-xl border border-sentinel-700 shadow-lg flex-shrink-0">
-            <div className="flex justify-between items-center mb-6 border-b border-sentinel-700 pb-4">
-              <h4 className="text-white font-bold flex items-center gap-2">
-                  <IconAlertTriangle className="w-5 h-5 text-warning-500" />
-                  Prediction & Alert Settings
-              </h4>
-              <button 
-                onClick={() => setShowHistory(true)}
-                className="flex items-center gap-2 px-3 py-1.5 bg-sentinel-900 hover:bg-sentinel-700 text-sky-400 rounded-lg text-xs font-bold transition-colors border border-sentinel-700"
-              >
-                <IconHistory className="w-3 h-3" />
-                HISTORY
-                {history.length > 0 && (
-                  <span className="bg-sky-500 text-white text-[10px] px-1.5 rounded-full">{history.length}</span>
-                )}
-              </button>
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-white font-bold flex items-center gap-2">
+                <IconActivity className="w-5 h-5 text-sky-400" />
+                Sector Telemetry & Trends
+              </h3>
+              <span className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">Live Multi-Sensor Link</span>
             </div>
-
-            {/* Threshold Control */}
-            <div className="mb-8">
-              <div className="flex justify-between items-end mb-4">
-                <label className="text-sm font-medium text-slate-300">Alert Threshold</label>
-                <div className="flex items-center gap-2 bg-sentinel-900 px-3 py-1 rounded border border-sentinel-700">
-                    <span className={`w-2 h-2 rounded-full ${alertThreshold < 50 ? 'bg-emerald-500' : alertThreshold < 80 ? 'bg-orange-500' : 'bg-red-500'}`}></span>
-                    <span className="font-mono text-sky-400 font-bold">{alertThreshold}%</span>
-                </div>
-              </div>
-              <input 
-                type="range" 
-                min="0" 
-                max="100" 
-                step="5"
-                value={alertThreshold} 
-                onChange={(e) => setAlertThreshold(Number(e.target.value))}
-                className="w-full h-2 bg-sentinel-900 rounded-lg appearance-none cursor-pointer accent-sky-500 hover:accent-sky-400 transition-all"
-              />
-              <div className="flex justify-between text-xs text-slate-500 mt-2 font-mono">
-                <span>ALL RISKS</span>
-                <span>CRITICAL ONLY</span>
-              </div>
-            </div>
-
-            {/* Audience Control */}
-            <div>
-              <label className="text-sm font-medium text-slate-300 mb-4 block">Notification Protocol</label>
-              <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
-                  {/* Option 1: Researchers */}
-                  <button 
-                    onClick={() => setAudience('researchers')}
-                    className={`p-3 rounded-xl border-2 text-left transition-all duration-200 relative overflow-hidden group ${
-                      audience === 'researchers' 
-                      ? 'bg-indigo-900/20 border-indigo-500/50 shadow-[0_0_20px_rgba(99,102,241,0.15)]' 
-                      : 'bg-sentinel-900 border-sentinel-700 hover:border-sentinel-600 opacity-60 hover:opacity-100'
-                    }`}
-                  >
-                    <div className="relative z-10 flex flex-col h-full">
-                      <div className="flex items-center gap-2 mb-2">
-                          <IconCpu className={`w-4 h-4 ${audience === 'researchers' ? 'text-indigo-400' : 'text-slate-400'}`} />
-                          <span className={`text-sm font-bold ${audience === 'researchers' ? 'text-indigo-100' : 'text-slate-300'}`}>Scientific</span>
-                      </div>
-                      <p className="text-[10px] leading-relaxed text-slate-400 mt-auto">Shear stress metrics & metamorphism data.</p>
-                    </div>
-                  </button>
-
-                  {/* Option 2: Communities */}
-                  <button 
-                    onClick={() => setAudience('communities')}
-                    className={`p-3 rounded-xl border-2 text-left transition-all duration-200 relative overflow-hidden group ${
-                      audience === 'communities' 
-                      ? 'bg-emerald-900/20 border-emerald-500/50 shadow-[0_0_20px_rgba(16,185,129,0.15)]' 
-                      : 'bg-sentinel-900 border-sentinel-700 hover:border-sentinel-600 opacity-60 hover:opacity-100'
-                    }`}
-                  >
-                    <div className="relative z-10 flex flex-col h-full">
-                      <div className="flex items-center gap-2 mb-2">
-                          <IconGlobe className={`w-4 h-4 ${audience === 'communities' ? 'text-emerald-400' : 'text-slate-400'}`} />
-                          <span className={`text-sm font-bold ${audience === 'communities' ? 'text-emerald-100' : 'text-slate-300'}`}>Community</span>
-                      </div>
-                      <p className="text-[10px] leading-relaxed text-slate-400 mt-auto">Evacuation orders & road closures.</p>
-                    </div>
-                  </button>
-
-                  {/* Option 3: Public (Climbers/Tourists) */}
-                  <button 
-                    onClick={() => setAudience('public')}
-                    className={`p-3 rounded-xl border-2 text-left transition-all duration-200 relative overflow-hidden group ${
-                      audience === 'public' 
-                      ? 'bg-orange-900/20 border-orange-500/50 shadow-[0_0_20px_rgba(249,115,22,0.15)]' 
-                      : 'bg-sentinel-900 border-sentinel-700 hover:border-sentinel-600 opacity-60 hover:opacity-100'
-                    }`}
-                  >
-                    <div className="relative z-10 flex flex-col h-full">
-                      <div className="flex items-center gap-2 mb-2">
-                          <IconMountain className={`w-4 h-4 ${audience === 'public' ? 'text-orange-400' : 'text-slate-400'}`} />
-                          <span className={`text-sm font-bold ${audience === 'public' ? 'text-orange-100' : 'text-slate-300'}`}>General Public</span>
-                      </div>
-                      <p className="text-[10px] leading-relaxed text-slate-400 mt-auto">Travel advisories & route safety.</p>
-                    </div>
-                  </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Thermal Map */}
-          <div className="bg-sentinel-800 rounded-xl overflow-hidden border border-sentinel-700 relative h-48 flex-shrink-0">
-            <img 
-              src="https://picsum.photos/seed/snowmount/800/400" 
-              className="w-full h-full object-cover opacity-50 mix-blend-luminosity" 
-              alt="The view of Nanga Parbat mountain, Pakistan - Thermal Terrain"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-sentinel-900 to-transparent"></div>
-            <div className="absolute top-1/4 left-1/4 w-24 h-24 bg-red-500/30 blur-xl rounded-full animate-pulse"></div>
-            <div className="absolute top-1/2 right-1/3 w-32 h-32 bg-orange-500/20 blur-xl rounded-full"></div>
             
-            <div className="absolute bottom-4 left-4">
-              <h4 className="text-white font-bold text-sm flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
-                Live Thermal Instability Overlay
-              </h4>
+            <div className="space-y-3">
+              {SECTOR_DATA.map((sector) => (
+                <div key={sector.zone} className="flex items-center gap-4 p-3 rounded-xl bg-sentinel-900/50 border border-sentinel-700/50 hover:border-sky-500/30 transition-all group">
+                  <div className="w-32 flex-shrink-0">
+                    <p className="text-sm font-bold text-slate-200 truncate">{sector.zone}</p>
+                    <div className="flex gap-2 mt-1">
+                      <span className="text-[10px] text-slate-500 font-mono">{sector.temp}</span>
+                      <span className="text-[10px] text-slate-500 font-mono">{sector.precip}</span>
+                    </div>
+                  </div>
+
+                  {/* Integrated Sparkline Area Chart */}
+                  <div className="flex-1 h-12 min-w-[100px] bg-sentinel-900/80 rounded-lg overflow-hidden border border-sentinel-800">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={SECTOR_HISTORY[sector.zone]}>
+                        <defs>
+                          <linearGradient id={`grad-${sector.zone}`} x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor={getTrendColor(sector.trend)} stopOpacity={0.3}/>
+                            <stop offset="95%" stopColor={getTrendColor(sector.trend)} stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <Area 
+                          type="monotone" 
+                          dataKey="val" 
+                          stroke={getTrendColor(sector.trend)} 
+                          fill={`url(#grad-${sector.zone})`}
+                          strokeWidth={1.5}
+                          dot={false}
+                          isAnimationActive={false}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  <div className="w-20 text-right">
+                    <p className="text-xs font-mono text-sky-400 font-bold">{sector.depth}</p>
+                    <span className={`text-[10px] font-bold uppercase ${
+                      sector.trend === 'Critical' ? 'text-red-400' : 
+                      sector.trend === 'Stable' ? 'text-emerald-400' : 'text-orange-400'
+                    }`}>
+                      {sector.trend}
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
+          </div>
+
+          {/* Configuration & Controls */}
+          <div className="bg-sentinel-800 p-6 rounded-xl border border-sentinel-700 shadow-lg">
+             <div className="flex items-center justify-between mb-6">
+               <h4 className="text-white font-bold flex items-center gap-2">
+                 <IconAlertTriangle className="w-5 h-5 text-warning-500" />
+                 Alert Generation Configuration
+               </h4>
+               <button onClick={() => setShowHistory(true)} className="p-2 bg-sentinel-900 hover:bg-sentinel-700 rounded-lg text-sky-400 border border-sentinel-700">
+                 <IconHistory className="w-4 h-4" />
+               </button>
+             </div>
+             
+             <div className="space-y-6">
+                <div>
+                  <div className="flex justify-between text-xs text-slate-400 mb-2 font-bold uppercase tracking-wider">
+                    <span>Probability Threshold</span>
+                    <span className="text-sky-400 font-mono">{alertThreshold}%</span>
+                  </div>
+                  <input 
+                    type="range" min="0" max="100" step="5" value={alertThreshold} 
+                    onChange={(e) => setAlertThreshold(Number(e.target.value))}
+                    className="w-full h-1.5 bg-sentinel-900 rounded-lg appearance-none cursor-pointer accent-sky-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  {['researchers', 'communities', 'public'].map((opt) => (
+                    <button
+                      key={opt}
+                      onClick={() => setAudience(opt as any)}
+                      className={`px-2 py-3 rounded-lg border text-[10px] font-bold uppercase transition-all ${
+                        audience === opt ? 'bg-sky-600 border-sky-400 text-white shadow-lg' : 'bg-sentinel-900 border-sentinel-700 text-slate-500 hover:text-slate-300'
+                      }`}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+             </div>
           </div>
         </div>
 
-        <div className="h-full min-h-[500px]">
+        {/* Analysis Panel */}
+        <div className="h-full">
           <AnalysisPanel 
-            title="Avalanche Prediction Engine" 
-            markdown={aiState.markdown} 
-            loading={aiState.loading} 
-            onAnalyze={handleAnalysis}
-            onExport={handleExport}
-            onSave={handleSave}
+            title="Avalanche Prediction Engine"
+            markdown={aiState.markdown}
+            loading={aiState.loading}
             isThinking={aiState.isThinking}
+            onAnalyze={handleAnalysis}
           />
         </div>
       </div>
 
-      {/* Runout Simulation Modal */}
-      {showRunoutSim && (
-          <RunoutSimulationModal onClose={() => setShowRunoutSim(false)} />
-      )}
-
       {/* History Modal Overlay */}
       {showHistory && (
-        <div className="absolute inset-0 z-50 bg-sentinel-900/95 backdrop-blur-md flex flex-col animate-in fade-in duration-200">
-          <div className="flex items-center justify-between p-6 border-b border-sentinel-700 bg-sentinel-900">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-sky-500/10 rounded-lg">
+        <div className="absolute inset-0 z-50 bg-sentinel-900/95 backdrop-blur-sm p-6 flex flex-col animate-in fade-in duration-200">
+           <div className="flex justify-between items-center mb-6 border-b border-sentinel-800 pb-4">
+              <h2 className="text-xl font-bold text-white flex items-center gap-3">
                 <IconHistory className="w-6 h-6 text-sky-400" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-white">Alert Generation Log</h2>
-                <p className="text-xs text-slate-400 font-mono">AUDIT TRAIL: IMMUTABLE</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-3">
-                {history.length > 0 && (
-                    <button
-                        onClick={handleSaveAllLogs}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
-                            historySaved 
-                            ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' 
-                            : 'bg-sentinel-800 text-slate-400 border-sentinel-700 hover:text-white hover:border-sentinel-600'
-                        }`}
-                    >
-                        {historySaved ? <IconCheck className="w-3 h-3" /> : <IconSave className="w-3 h-3" />}
-                        {historySaved ? 'SAVED' : 'SAVE ALL TO LOCAL'}
-                    </button>
-                )}
-                <button 
-                onClick={() => setShowHistory(false)}
-                className="p-2 hover:bg-sentinel-800 rounded-lg text-slate-400 hover:text-white transition-colors"
-                >
-                <IconX className="w-6 h-6" />
-                </button>
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-6">
-            {history.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-slate-500">
-                <IconHistory className="w-16 h-16 mb-4 opacity-20" />
-                <p>No alerts generated in this session.</p>
-              </div>
-            ) : (
-              <div className="space-y-4 max-w-4xl mx-auto">
-                {history.map((log) => (
-                  <div key={log.id} className="bg-sentinel-800 border border-sentinel-700 rounded-xl overflow-hidden shadow-lg transition-all hover:border-sentinel-600">
-                    <div 
-                      className="p-4 flex items-center gap-6 cursor-pointer hover:bg-sentinel-700/30 transition-colors"
-                      onClick={() => setExpandedLogId(expandedLogId === log.id ? null : log.id)}
-                    >
-                      <div className="flex flex-col items-center min-w-[80px]">
-                        <span className="text-xs font-mono text-slate-400">{log.timestamp.split(',')[0]}</span>
-                        <span className="text-sm font-bold text-white">{log.timestamp.split(',')[1]}</span>
+                Alert Audit History
+              </h2>
+              <button onClick={() => setShowHistory(false)} className="text-slate-400 hover:text-white"><IconX className="w-6 h-6" /></button>
+           </div>
+           
+           <div className="flex-1 overflow-y-auto space-y-4">
+              {history.length === 0 ? (
+                <div className="h-full flex items-center justify-center text-slate-600 italic">No logs generated for this session.</div>
+              ) : (
+                history.map(log => (
+                  <div key={log.id} className="bg-sentinel-800 border border-sentinel-700 rounded-xl overflow-hidden">
+                    <div className="p-4 flex justify-between items-center cursor-pointer hover:bg-sentinel-700/50" onClick={() => setExpandedLogId(expandedLogId === log.id ? null : log.id)}>
+                      <div className="flex gap-4 items-center">
+                        <span className="text-xs font-mono text-slate-500">{log.timestamp}</span>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${log.riskLevel === 'Critical' ? 'bg-red-500/20 text-red-400' : 'bg-orange-500/20 text-orange-400'}`}>
+                          {log.riskLevel}
+                        </span>
+                        <span className="text-xs text-white font-bold">{log.zones.join(', ')}</span>
                       </div>
-
-                      <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-4 items-center">
-                        <div>
-                          <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Risk Level</p>
-                          <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-bold ${
-                            log.riskLevel === 'Critical' ? 'bg-red-500/20 text-red-400 border border-red-500/20' :
-                            log.riskLevel === 'High' ? 'bg-orange-500/20 text-orange-400 border border-orange-500/20' :
-                            log.riskLevel === 'Moderate' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/20' :
-                            'bg-emerald-500/20 text-emerald-400 border border-emerald-500/20'
-                          }`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${
-                              log.riskLevel === 'Critical' ? 'bg-red-500' :
-                              log.riskLevel === 'High' ? 'bg-orange-500' :
-                              log.riskLevel === 'Moderate' ? 'bg-yellow-500' :
-                              'bg-emerald-500'
-                            }`}></span>
-                            {log.riskLevel}
-                          </span>
-                        </div>
-
-                        <div>
-                           <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Affected Zones</p>
-                           <p className="text-sm text-slate-200 truncate" title={log.zones.join(', ')}>
-                             {log.zones.length > 0 ? log.zones.join(', ') : 'None'}
-                           </p>
-                        </div>
-
-                         <div>
-                           <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Audience</p>
-                           <div className="flex items-center gap-1.5">
-                             {log.audience === 'researchers' && <IconCpu className="w-3 h-3 text-indigo-400"/>}
-                             {log.audience === 'communities' && <IconGlobe className="w-3 h-3 text-emerald-400"/>}
-                             {log.audience === 'public' && <IconMountain className="w-3 h-3 text-orange-400"/>}
-                             <span className={`text-sm ${
-                               log.audience === 'researchers' ? 'text-indigo-300' : 
-                               log.audience === 'communities' ? 'text-emerald-300' : 
-                               'text-orange-300'
-                             }`}>
-                               {log.audience === 'researchers' ? 'Scientific' : log.audience === 'communities' ? 'Public' : 'General Public'}
-                             </span>
-                           </div>
-                        </div>
-
-                        <div>
-                           <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Threshold</p>
-                           <p className="text-sm font-mono text-slate-300">
-                             &gt;{log.threshold}%
-                           </p>
-                        </div>
-                      </div>
-
-                      <div className="text-slate-400">
-                        {expandedLogId === log.id ? <IconX className="w-5 h-5" /> : <span className="text-2xl leading-none">+</span>}
-                      </div>
+                      <IconPlus className={`w-4 h-4 transition-transform ${expandedLogId === log.id ? 'rotate-45' : ''}`} />
                     </div>
-
                     {expandedLogId === log.id && (
-                      <div className="p-6 bg-sentinel-900/50 border-t border-sentinel-700 animate-in slide-in-from-top-2">
-                        <div className="prose prose-sm prose-invert prose-sky max-w-none">
-                          <ReactMarkdown>{log.message}</ReactMarkdown>
-                        </div>
+                      <div className="p-6 bg-sentinel-950/50 border-t border-sentinel-800 text-sm leading-relaxed prose prose-invert max-w-none">
+                        <ReactMarkdown>{log.message}</ReactMarkdown>
                       </div>
                     )}
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
+                ))
+              )}
+           </div>
         </div>
       )}
     </div>
   );
 };
 
-// Internal Component for Runout Simulation
-const RunoutSimulationModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-    const canvasRef = useRef<HTMLCanvasElement>(null);
-    const [stats, setStats] = useState({ velocity: 0, pressure: 0, flowDepth: 0 });
-    const [simulating, setSimulating] = useState(false);
-    
-    // Simulation Logic
-    useEffect(() => {
-        if (!simulating || !canvasRef.current) return;
-        
-        const canvas = canvasRef.current;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-
-        let animationFrameId: number;
-        const particles: { x: number; y: number; vx: number; vy: number; life: number }[] = [];
-        const w = canvas.width;
-        const h = canvas.height;
-        
-        // Define a simple path (Valley Curve)
-        const pathPoints = [
-            {x: w * 0.2, y: h * 0.1},
-            {x: w * 0.6, y: h * 0.4},
-            {x: w * 0.5, y: h * 0.7},
-            {x: w * 0.8, y: h * 0.9}
-        ];
-
-        let frameCount = 0;
-
-        const render = () => {
-            ctx.clearRect(0, 0, w, h);
-            
-            // Draw Background Image
-            // In real app, draw image here. For now, transparency lets CSS image show through.
-            
-            // Draw Heatmap Overlay
-            ctx.beginPath();
-            ctx.moveTo(pathPoints[0].x, pathPoints[0].y);
-            ctx.bezierCurveTo(w*0.7, h*0.2, w*0.2, h*0.6, pathPoints[3].x, pathPoints[3].y);
-            ctx.lineTo(pathPoints[3].x - 50, pathPoints[3].y);
-            ctx.bezierCurveTo(w*0.1, h*0.6, w*0.6, h*0.2, pathPoints[0].x - 20, pathPoints[0].y);
-            ctx.fillStyle = 'rgba(239, 68, 68, 0.1)'; // Red Tint
-            ctx.fill();
-            
-            // Spawn Particles
-            if (frameCount < 300) { // Spawn for limited time
-                for(let i=0; i<5; i++) {
-                    particles.push({
-                        x: pathPoints[0].x + (Math.random() - 0.5) * 40,
-                        y: pathPoints[0].y + (Math.random() - 0.5) * 40,
-                        vx: (Math.random() * 2),
-                        vy: (Math.random() * 2) + 1,
-                        life: 1.0
-                    });
-                }
-            }
-
-            // Update & Draw Particles
-            ctx.fillStyle = '#fff';
-            for (let i = 0; i < particles.length; i++) {
-                const p = particles[i];
-                
-                // Simple Gravity & Flow Logic towards bottom right roughly
-                p.x += p.vx;
-                p.y += p.vy;
-                p.vx += (Math.random() - 0.4) * 0.2; // Turbulence
-                p.vy += 0.05; // Gravity acceleration
-                
-                // Guidance towards path center (fake physics)
-                const targetX = w * 0.5 + (p.y / h) * (w * 0.3);
-                p.vx += (targetX - p.x) * 0.001;
-
-                p.life -= 0.005;
-                
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, Math.max(0, p.life * 3), 0, Math.PI * 2);
-                ctx.fill();
-
-                if (p.y > h || p.life <= 0) {
-                    particles.splice(i, 1);
-                    i--;
-                }
-            }
-
-            // Update Stats
-            if (frameCount % 10 === 0 && frameCount < 400) {
-                setStats({
-                    velocity: Math.floor(40 + (frameCount / 5) + Math.random() * 5),
-                    pressure: Math.floor(100 + (frameCount / 2)),
-                    flowDepth: Number((2.5 + Math.random() * 0.5).toFixed(1))
-                });
-            } else if (frameCount >= 400) {
-                 setStats({ velocity: 0, pressure: 0, flowDepth: 4.5 }); // Settled
-                 setSimulating(false);
-            }
-
-            frameCount++;
-            if (simulating) animationFrameId = requestAnimationFrame(render);
-        };
-
-        render();
-
-        return () => cancelAnimationFrame(animationFrameId);
-    }, [simulating]);
-
-    return (
-        <div className="absolute inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-6 animate-in fade-in zoom-in duration-300">
-            <div className="relative w-full max-w-5xl aspect-video bg-sentinel-900 rounded-xl overflow-hidden border border-sentinel-600 shadow-2xl">
-                {/* Background Terrain */}
-                <img 
-                    src="https://picsum.photos/seed/avalanche_path/1200/800" 
-                    className="absolute inset-0 w-full h-full object-cover opacity-60 grayscale"
-                    alt="The view of Nanga Parbat mountain, Pakistan - Runout Path"
-                />
-                
-                {/* Simulation Canvas */}
-                <canvas 
-                    ref={canvasRef} 
-                    width={1200} 
-                    height={800} 
-                    className="absolute inset-0 w-full h-full mix-blend-screen"
-                />
-
-                {/* HUD Overlay */}
-                <div className="absolute top-4 left-4 p-4 bg-sentinel-900/80 backdrop-blur-md rounded-lg border border-red-500/30 flex flex-col gap-4 min-w-[200px]">
-                    <h3 className="text-red-400 font-bold flex items-center gap-2">
-                        <IconActivity className="w-5 h-5 animate-pulse" />
-                        RUNOUT SIMULATION
-                    </h3>
-                    
-                    <div className="space-y-2">
-                        <div className="flex justify-between text-xs">
-                            <span className="text-slate-400">Velocity</span>
-                            <span className="font-mono text-white font-bold">{stats.velocity} km/h</span>
-                        </div>
-                        <div className="w-full bg-sentinel-700 h-1 rounded-full overflow-hidden">
-                            <div className="bg-orange-500 h-full transition-all duration-300" style={{ width: `${stats.velocity}%` }}></div>
-                        </div>
-
-                        <div className="flex justify-between text-xs">
-                            <span className="text-slate-400">Impact Pressure</span>
-                            <span className="font-mono text-white font-bold">{stats.pressure} kPa</span>
-                        </div>
-                        <div className="w-full bg-sentinel-700 h-1 rounded-full overflow-hidden">
-                            <div className="bg-red-500 h-full transition-all duration-300" style={{ width: `${stats.pressure / 3}%` }}></div>
-                        </div>
-
-                        <div className="flex justify-between text-xs">
-                            <span className="text-slate-400">Flow Depth</span>
-                            <span className="font-mono text-white font-bold">{stats.flowDepth} m</span>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Controls */}
-                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-4">
-                    {!simulating && (
-                        <button 
-                            onClick={() => setSimulating(true)}
-                            className="bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-6 rounded-full shadow-lg transition-transform hover:scale-105 flex items-center gap-2"
-                        >
-                            <IconActivity className="w-4 h-4" />
-                            START SIMULATION
-                        </button>
-                    )}
-                    <button 
-                        onClick={onClose}
-                        className="bg-sentinel-800 hover:bg-sentinel-700 text-slate-300 font-bold py-2 px-6 rounded-full border border-sentinel-600 transition-colors"
-                    >
-                        CLOSE
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-};
+// Internal icon for history expansion
+const IconPlus = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <line x1="12" y1="5" x2="12" y2="19"></line>
+    <line x1="5" y1="12" x2="19" y2="12"></line>
+  </svg>
+);
 
 export default AvalancheView;

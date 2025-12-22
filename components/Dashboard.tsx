@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
-import { IconMountain, IconSnowflake, IconActivity, IconAlertTriangle, IconGlobe, IconMap, IconDownload, IconX, IconCpu, IconShare, IconPlus, IconMinus, IconLocate, IconLayers, IconSun, IconBeaker } from './Icons';
+import { IconMountain, IconSnowflake, IconActivity, IconAlertTriangle, IconGlobe, IconMap, IconDownload, IconX, IconCpu, IconShare, IconPlus, IconMinus, IconLocate, IconLayers, IconSun, IconBeaker, IconClock, IconHistory, IconHammer, IconDiamond } from './Icons';
 import { MetricCardProps, AiResponse } from '../types';
 import AnalysisPanel from './AnalysisPanel';
 import { generateDeepThinkingInsight } from '../services/geminiService';
@@ -40,12 +41,92 @@ interface FaultSystem {
   labelPos: { x: number; y: number };
 }
 
+interface GeochronEvent {
+  id: string;
+  time: string;
+  event: string;
+  desc: string;
+  details: string;
+  context: string;
+}
+
+interface GeoLabStream {
+    id: string;
+    type: 'mineral' | 'structural' | 'seismic';
+    title: string;
+    summary: string;
+    data: string;
+    timestamp: string;
+}
+
 const ZONES: RiskZone[] = [
   { id: 'z1', name: 'Rupal Face', x: 45, y: 30, riskLevel: 'Critical', riskScore: 92, details: 'Deep slab instability detected. High shear stress on lower slopes.', metric: 'Depth: 2.4m', gpsAccuracy: 35 },
   { id: 'z2', name: 'Rakhiot Flank', x: 65, y: 25, riskLevel: 'High', riskScore: 85, details: 'Wind slab formation on leeward slopes due to recent storm.', metric: 'Load: 450kg/m²', gpsAccuracy: 18 },
   { id: 'z3', name: 'Chungphar Sector', x: 60, y: 55, riskLevel: 'Moderate', riskScore: 42, details: 'Rapid melt destabilizing seracs. Monitor icefall frequency.', metric: 'Melt: 4.2cm/day', gpsAccuracy: 12 },
   { id: 'z4', name: 'Diamir Base', x: 28, y: 50, riskLevel: 'Low', riskScore: 25, details: 'Stable snowpack. Low probability of wet loose avalanches.', metric: 'Temp: -8°C', gpsAccuracy: 5 },
   { id: 'z5', name: 'Mazeno Ridge', x: 50, y: 70, riskLevel: 'High', riskScore: 78, details: 'Cornice buildup observed. Trigger likely on heavy loading.', metric: 'Wind: 65km/h', gpsAccuracy: 42 },
+];
+
+const GEOCHRON_EVENTS: GeochronEvent[] = [
+    {
+        id: 'e1',
+        time: '55 Ma',
+        event: 'Initial India-Asia Collision',
+        desc: 'Onset of the Himalayan orogeny and Tethys closure.',
+        details: 'Initial continental collision following the subduction of the Neo-Tethys oceanic lithosphere. This event set the stage for the extreme crustal thickening observed today.',
+        context: 'Analyze the thermal and structural regime of the initial 55Ma collision. Contrast it with the current syntaxial exhumation.'
+    },
+    {
+        id: 'e2',
+        time: '12 Ma',
+        event: 'Syntaxis Initiation',
+        desc: 'Crustal rotation and MMT reactivation.',
+        details: 'The rotation of the Indian plate promontory led to the formation of the syntaxial loop. The Main Mantle Thrust (MMT) was reactivated, facilitating the early uplift of the core.',
+        context: 'Explain the mechanical triggers for the 12Ma rotation. How did it differ from standard Himalayan thrusting?'
+    },
+    {
+        id: 'e3',
+        time: '3 Ma',
+        event: 'Exhumation Surge',
+        desc: 'The Tectonic Aneurysm cycle begins.',
+        details: 'Coupling of deep-seated exhumation with rapid fluvial incision by the Indus River. Melting of the lower crust (leucogranites) begins due to isothermal decompression.',
+        context: 'Model the coupling between 3Ma river incision and 10mm/yr exhumation. Cite the role of decompression melting.'
+    },
+    {
+        id: 'e4',
+        time: 'Present',
+        event: 'Maximum Relief Phase',
+        desc: 'Fastest vertical uplift recorded on Earth.',
+        details: 'Continuing rapid exhumation of high-grade metamorphic rocks. The massif maintains extreme relief (>7000m vertical) despite intense glacial and fluvial erosion.',
+        context: 'Analyze the current P-T-t path. Is the exhumation rate sustainable, or are we approaching a structural limit?'
+    }
+];
+
+const GEO_LAB_STREAMS: GeoLabStream[] = [
+    {
+        id: 'lab-1',
+        type: 'mineral',
+        title: 'High-Grade Metamorphic Assay',
+        summary: 'Unit NP-Core-22: Sillimanite-grade Gneiss with Tur-Leucogranite intrusions.',
+        data: 'Sample_ID: NP-104-A | Mineralogy: Qtz (35%), Kfs (30%), Plag (15%), Bio (10%), Sil (5%), Grt (5%) | Age: 1.8 Ga (Core) / 3 Ma (Melt) | Geothermometry: T=720°C, P=8.5 kbar.',
+        timestamp: 'T-04:20:00'
+    },
+    {
+        id: 'lab-2',
+        type: 'structural',
+        title: 'Raikot Fault Slip Log',
+        summary: 'Kinematic monitoring of the western bounding thrust/normal system.',
+        data: 'Fault_ID: RF-01 | Strike: 045° | Dip: 60° (SE) | Rake: 90° (Reverse) | Cumulative Displacement (Holocene): 450m | Slip Rate: 1.2mm/yr (Local Creep).',
+        timestamp: 'T-02:15:00'
+    },
+    {
+        id: 'lab-3',
+        type: 'seismic',
+        title: 'Active Exhumation Seismic Profile',
+        summary: 'Low-velocity zone detection beneath the syntaxial core.',
+        data: 'Vp: 6.2 km/s | Vs: 3.4 km/s | Vp/Vs: 1.82 (High) | Depth: 12-18km | Interpretation: Potential partial melt or fluid-rich zone facilitating exhumation.',
+        timestamp: 'T-00:45:00'
+    }
 ];
 
 const LITHOLOGY_DATA: LithologyUnit[] = [
@@ -448,6 +529,79 @@ const Dashboard: React.FC = () => {
      }
   };
 
+  const handleEventAnalysis = async (event: GeochronEvent) => {
+    setSelectedZone({
+        id: `event-${event.id}`,
+        name: event.event,
+        x: 0, y: 0,
+        riskLevel: 'Moderate',
+        riskScore: 60,
+        details: event.details,
+        metric: `Epoch: ${event.time}`
+    });
+    setViewMode('analysis');
+    setAiState({ markdown: '', loading: true, isThinking: true });
+
+    const prompt = `
+        **GEODYNAMIC EVENT ANALYSIS: ${event.event.toUpperCase()}**
+        
+        **Timeframe:** ${event.time}
+        **Historical Context:** ${event.details}
+        
+        **Analysis Objectives:**
+        ${event.context}
+        1. Deep-time geological significance.
+        2. Impact on the modern syntaxial exhumation rates.
+        3. Structural legacy in the current fault systems.
+
+        Tone: Senior Geotectonics Specialist.
+    `;
+
+    try {
+        const result = await generateDeepThinkingInsight(prompt);
+        setAiState({ markdown: result, loading: false, isThinking: false });
+    } catch (e) {
+        setAiState({ markdown: "Event analysis failed due to telemetry loss.", loading: false, isThinking: false });
+    }
+  };
+
+  const handleLabStreamAnalysis = async (stream: GeoLabStream) => {
+      setSelectedZone({
+          id: `lab-${stream.id}`,
+          name: stream.title,
+          x: 0, y: 0,
+          riskLevel: 'Moderate',
+          riskScore: 75,
+          details: stream.summary,
+          metric: stream.timestamp
+      });
+      setViewMode('analysis');
+      setAiState({ markdown: '', loading: true, isThinking: true });
+
+      const prompt = `
+        **GEOLOGICAL LABORATORY ANALYSIS: ${stream.title.toUpperCase()}**
+        
+        **Source Metadata:**
+        - Stream ID: ${stream.id}
+        - Classification: ${stream.type.toUpperCase()}
+        - Data Stream: ${stream.data}
+        
+        **Scientific Objectives:**
+        1. **Interpretative Summary**: Decipher the raw data into scientific insights relevant to the Nanga Parbat Syntaxis.
+        2. **Massif Context**: How does this specific log (Mineral/Structural/Seismic) inform our understanding of the current exhumation surge?
+        3. **Predictive Analytics**: Based on these values, what is the next structural or thermal transition expected in this sector?
+        
+        Tone: Lead Geological Investigator. Advanced technical vocabulary required.
+      `;
+
+      try {
+          const result = await generateDeepThinkingInsight(prompt);
+          setAiState({ markdown: result, loading: false, isThinking: false });
+      } catch (e) {
+          setAiState({ markdown: "Lab analysis failed. Remote link severed.", loading: false, isThinking: false });
+      }
+  };
+
   const handleGeologyAnalysis = async () => {
      setSelectedZone({
          id: 'geo-master',
@@ -687,6 +841,108 @@ const Dashboard: React.FC = () => {
             trend="up"
             icon={<IconMountain />}
           />
+        </div>
+
+        {/* Geological Intelligence & Timeline Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Geochronology Timeline (2/3 width) */}
+            <div className="lg:col-span-2 bg-sentinel-800 p-6 rounded-2xl border border-sentinel-700 shadow-xl overflow-hidden relative flex flex-col">
+                <div className="flex items-center justify-between mb-6">
+                    <div>
+                        <h3 className="text-white font-bold flex items-center gap-2">
+                            <IconHistory className="w-5 h-5 text-teal-400" />
+                            Deep-Time Geodynamic Timeline
+                        </h3>
+                        <p className="text-slate-400 text-xs mt-1">Nanga Parbat Massif Tectonic Evolution</p>
+                    </div>
+                </div>
+
+                <div className="flex items-start gap-4 overflow-x-auto pb-4 custom-scrollbar">
+                    {GEOCHRON_EVENTS.map((event, index) => (
+                        <div 
+                            key={event.id}
+                            onClick={() => handleEventAnalysis(event)}
+                            className="flex-shrink-0 w-64 group cursor-pointer animate-in fade-in slide-in-from-right-4 duration-500"
+                            style={{ animationDelay: `${index * 150}ms` }}
+                        >
+                            <div className="flex items-center mb-4">
+                                <div className="relative">
+                                    <div className={`w-4 h-4 rounded-full border-2 border-teal-500 z-10 relative bg-sentinel-900 transition-all duration-300 group-hover:scale-125 group-hover:bg-teal-500 group-hover:shadow-[0_0_10px_rgba(20,184,166,0.6)]`}></div>
+                                    {index < GEOCHRON_EVENTS.length - 1 && (
+                                        <div className="absolute top-1/2 left-full w-60 h-[1px] bg-gradient-to-r from-teal-500/50 to-teal-500/10 -translate-y-1/2"></div>
+                                    )}
+                                </div>
+                                <span className="ml-3 text-[10px] font-mono font-black text-teal-400 uppercase tracking-tighter">{event.time}</span>
+                            </div>
+                            <div className="bg-sentinel-900/60 p-4 rounded-xl border border-white/5 group-hover:border-teal-500/30 transition-all group-hover:bg-sentinel-900 group-hover:-translate-y-1">
+                                <h4 className="text-sm font-bold text-white mb-2 leading-tight group-hover:text-teal-100 transition-colors">{event.event}</h4>
+                                <p className="text-[11px] text-slate-400 leading-relaxed mb-4 group-hover:text-slate-300 transition-colors">{event.desc}</p>
+                                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <span className="text-[9px] font-mono text-teal-500 flex items-center gap-1">
+                                        <IconCpu className="w-3 h-3" /> ANALYZE EVENT
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* Geological Data Lab Section (1/3 width) - UPGRADED */}
+            <div className="lg:col-span-1 bg-sentinel-900/50 p-6 rounded-2xl border border-purple-500/30 shadow-xl relative overflow-hidden flex flex-col">
+                <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-white font-bold flex items-center gap-2">
+                        <IconBeaker className="w-5 h-5 text-purple-400" />
+                        Field Intelligence Lab
+                    </h3>
+                    <div className="flex items-center gap-1.5">
+                        <div className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse"></div>
+                        <span className="text-[10px] font-mono text-purple-500">LAB_MODE: ACTIVE</span>
+                    </div>
+                </div>
+
+                <div className="flex-1 space-y-3 overflow-y-auto pr-1 custom-scrollbar">
+                    {GEO_LAB_STREAMS.map((stream) => (
+                        <div 
+                            key={stream.id}
+                            className="bg-sentinel-800/80 border border-sentinel-700 rounded-xl p-3 hover:border-purple-400/50 transition-all group cursor-pointer"
+                            onClick={() => handleLabStreamAnalysis(stream)}
+                        >
+                            <div className="flex justify-between items-start mb-2">
+                                <div className="flex items-center gap-2">
+                                    {stream.type === 'mineral' ? <IconDiamond className="w-3 h-3 text-emerald-400" /> : 
+                                     stream.type === 'structural' ? <IconHammer className="w-3 h-3 text-orange-400" /> : 
+                                     <IconActivity className="w-3 h-3 text-sky-400" />}
+                                    <span className="text-xs font-bold text-white group-hover:text-purple-300 transition-colors">{stream.title}</span>
+                                </div>
+                                <span className="text-[9px] font-mono text-slate-500">{stream.timestamp}</span>
+                            </div>
+                            <p className="text-[10px] text-slate-400 leading-tight mb-2">{stream.summary}</p>
+                            <div className="flex items-center justify-between">
+                                <div className="flex gap-1">
+                                    <div className="w-1 h-1 rounded-full bg-sentinel-600"></div>
+                                    <div className="w-1 h-1 rounded-full bg-sentinel-600"></div>
+                                    <div className="w-1 h-1 rounded-full bg-sentinel-600"></div>
+                                </div>
+                                <span className="text-[8px] font-mono text-purple-400/70 opacity-0 group-hover:opacity-100 transition-opacity">RUN AI INFERENCE ›</span>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                <div className="mt-4 pt-4 border-t border-white/5">
+                    <button 
+                        onClick={() => handleGeologyAnalysis()}
+                        className="w-full py-2 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 rounded-lg text-[10px] font-bold text-purple-300 transition-all flex items-center justify-center gap-2 group"
+                    >
+                        <IconCpu className="w-3 h-3 group-hover:animate-spin" />
+                        INITIATE FULL GEODYNAMIC REASONING
+                    </button>
+                </div>
+
+                {/* Aesthetic Terminal Scanline */}
+                <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-purple-500/5 to-transparent pointer-events-none"></div>
+            </div>
         </div>
 
         {/* Main Map View */}
