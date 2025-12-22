@@ -888,6 +888,64 @@ const Dashboard: React.FC = () => {
                     </svg>
                 </div>
 
+                {/* GEOLOGICAL LITHOLOGY OVERLAY (New Map Representation) */}
+                {showLithology && (
+                    <div className="absolute inset-0 z-20 transition-opacity duration-700 pointer-events-auto">
+                        <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+                            <defs>
+                                <pattern id="diag-gneiss" x="0" y="0" width="4" height="4" patternUnits="userSpaceOnUse">
+                                    <path d="M0,2 Q1,0 2,2 T4,2" fill="none" stroke="white" strokeWidth="0.1" opacity="0.3" />
+                                </pattern>
+                                <pattern id="diag-granite" x="0" y="0" width="3" height="3" patternUnits="userSpaceOnUse">
+                                    <circle cx="1.5" cy="1.5" r="0.2" fill="white" opacity="0.4" />
+                                </pattern>
+                                <pattern id="diag-marble" x="0" y="0" width="5" height="5" patternUnits="userSpaceOnUse">
+                                    <path d="M0,0 L5,5 M5,0 L0,5" stroke="white" strokeWidth="0.05" opacity="0.2" />
+                                </pattern>
+                            </defs>
+                            
+                            {/* Outer Layer: Shengus Gneiss */}
+                            <path 
+                                d="M 20,80 C 10,60 30,20 50,15 C 70,20 90,60 80,80 C 70,95 30,95 20,80 Z" 
+                                fill="#292524" fillOpacity="0.4" stroke="#44403c" strokeWidth="0.2"
+                                className="cursor-pointer hover:fill-opacity-60 transition-all"
+                                onClick={(e) => { e.stopPropagation(); handleLithologyUnitAnalysis(LITHOLOGY_DATA[3]); }}
+                            />
+                            <rect x="20" y="15" width="60" height="70" fill="url(#diag-gneiss)" pointerEvents="none" opacity="0.3" />
+
+                            {/* Middle Layer: Mito Cover Sequence */}
+                            <path 
+                                d="M 30,75 C 25,60 35,35 50,30 C 65,35 75,60 70,75 C 65,85 35,85 30,75 Z" 
+                                fill="#065f46" fillOpacity="0.5" stroke="#064e3b" strokeWidth="0.2"
+                                className="cursor-pointer hover:fill-opacity-70 transition-all"
+                                onClick={(e) => { e.stopPropagation(); handleLithologyUnitAnalysis(LITHOLOGY_DATA[1]); }}
+                            />
+                            <rect x="25" y="30" width="50" height="50" fill="url(#diag-marble)" pointerEvents="none" opacity="0.3" />
+
+                            {/* Core Layer: Iskere Gneiss */}
+                            <path 
+                                d="M 40,65 C 38,55 42,45 50,42 C 58,45 62,55 60,65 C 58,72 42,72 40,65 Z" 
+                                fill="#475569" fillOpacity="0.6" stroke="#334155" strokeWidth="0.3"
+                                className="cursor-pointer hover:fill-opacity-80 transition-all"
+                                onClick={(e) => { e.stopPropagation(); handleLithologyUnitAnalysis(LITHOLOGY_DATA[2]); }}
+                            />
+                            
+                            {/* Intrusions: Tato Leucogranite */}
+                            <circle 
+                                cx="52" cy="45" r="3" fill="#f472b6" fillOpacity="0.8" stroke="#ec4899" strokeWidth="0.2"
+                                className="cursor-pointer hover:scale-110 transition-transform origin-center"
+                                onClick={(e) => { e.stopPropagation(); handleLithologyUnitAnalysis(LITHOLOGY_DATA[0]); }}
+                            />
+                            <circle 
+                                cx="48" cy="48" r="2.5" fill="#f472b6" fillOpacity="0.8" stroke="#ec4899" strokeWidth="0.2"
+                                className="cursor-pointer hover:scale-110 transition-transform origin-center"
+                                onClick={(e) => { e.stopPropagation(); handleLithologyUnitAnalysis(LITHOLOGY_DATA[0]); }}
+                            />
+                            <rect x="45" y="42" width="10" height="10" fill="url(#diag-granite)" pointerEvents="none" opacity="0.5" />
+                        </svg>
+                    </div>
+                )}
+
                 {/* SCHEMATIC DIAGRAM LAYER (New) */}
                 {activeLayer === 'Diagram' && (
                     <div className="absolute inset-0 z-20 bg-[#1a5276] overflow-hidden transition-opacity duration-500">
