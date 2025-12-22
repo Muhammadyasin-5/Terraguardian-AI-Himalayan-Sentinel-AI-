@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import AnalysisPanel from './AnalysisPanel';
 import { generateDeepThinkingInsight, generateMultimodalInsight } from '../services/geminiService';
@@ -201,7 +200,7 @@ const DataLabView: React.FC = () => {
           <div className="mb-6">
              <h3 className="text-xl font-bold text-white flex items-center gap-2">
                 <IconCpu className="w-6 h-6 text-purple-400" />
-                Data Lab
+                Advanced Geological and Telemetric Analysis
              </h3>
              <p className="text-slate-400 text-sm font-mono uppercase tracking-tighter">Multimodal Research Interface</p>
           </div>
@@ -337,7 +336,7 @@ const DataLabView: React.FC = () => {
       {/* Analysis Column */}
       <div className="h-full min-h-[500px]">
         <AnalysisPanel 
-          title="Data Intelligence Hub" 
+          title="Advanced Computational Engineering" 
           markdown={aiState.markdown} 
           loading={aiState.loading} 
           onAnalyze={handleAnalysis}

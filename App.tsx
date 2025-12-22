@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { AnalysisMode } from './types';
 import Dashboard from './components/Dashboard';
@@ -125,7 +124,7 @@ const App: React.FC = () => {
             <NavButton target={AnalysisMode.ECOSYSTEM} icon={<IconLeaf />} label="Ecosystem Model" />
             
             <div className="my-2 border-t border-sentinel-800"></div>
-            <NavButton target={AnalysisMode.DATA_LAB} icon={<IconCpu />} label="Data Lab" />
+            <NavButton target={AnalysisMode.DATA_LAB} icon={<IconCpu />} label="Advanced Analysis" />
           </nav>
         </div>
 
