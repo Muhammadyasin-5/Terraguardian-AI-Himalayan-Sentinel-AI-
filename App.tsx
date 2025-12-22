@@ -178,8 +178,8 @@ const App: React.FC = () => {
               <span className="text-slate-400 block">Village Chatter No.1, Tehsil & District Bagh, Azad Jammu & Kashmir, Pakistan</span>
             </div>
             <div className="mb-2">
-              <span className="block font-bold text-slate-600 mb-0.5">App Building Platform</span>
-              <span className="text-slate-400 block">Google AI Studio with<br/>Google Gemini 3 Pro</span>
+              <span className="block font-bold text-slate-600 mb-0.5">POWERED BY</span>
+              <span className="text-slate-400 block font-bold">Google Gemini 3 Pro &<br/>Gemini 3 Flash Preview</span>
             </div>
             <div>
               <span className="block font-bold text-slate-600 mb-0.5">CONTACT</span>

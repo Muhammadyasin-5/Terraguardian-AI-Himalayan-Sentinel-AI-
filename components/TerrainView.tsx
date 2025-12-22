@@ -2,11 +2,11 @@
 import React, { useState, useMemo, useRef, Suspense, useEffect } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Stars, Html, Cloud } from '@react-three/drei';
-import * as THREE from 'three';
+import * as THREE from 'this';
 import AnalysisPanel from './AnalysisPanel';
 import { generateDeepThinkingInsight } from '../services/geminiService';
 import { AiResponse } from '../types';
-import { IconMap, IconLayers, IconActivity, IconMountain } from './Icons';
+import { IconMap, IconLayers, IconActivity, IconMountain, IconHistory } from './Icons';
 
 // --- Types ---
 interface Poi {
@@ -120,7 +120,6 @@ const TerrainMesh: React.FC<{
                               className={`flex flex-col items-center transition-all duration-500 ${showLabels ? 'opacity-100' : 'opacity-0 scale-90 pointer-events-none'}`}
                               onClick={(e) => { e.stopPropagation(); onSelectPoi(poi); }}
                             >
-                                {/* Futuristic Callout Label */}
                                 <div className="group cursor-pointer flex flex-col items-center">
                                     <div className="flex items-center gap-2 bg-sentinel-900/90 backdrop-blur-md border border-white/20 rounded-lg p-2 shadow-2xl transition-all group-hover:bg-sky-900/80 group-hover:border-sky-400/50 group-hover:-translate-y-1">
                                         <div className="w-2 h-2 rounded-full" style={{ backgroundColor: poi.color }}></div>
@@ -129,15 +128,12 @@ const TerrainMesh: React.FC<{
                                             <span className="text-[9px] font-mono text-sky-400 font-bold mt-0.5">{poi.elevation}</span>
                                         </div>
                                     </div>
-                                    {/* Connecting Line */}
                                     <div className="w-px h-6 bg-gradient-to-t from-white/40 to-transparent"></div>
-                                    {/* Base Point */}
                                     <div className="w-2 h-2 rounded-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.8)] animate-pulse"></div>
                                 </div>
                             </div>
                         </Html>
                         
-                        {/* Always visible minimal dot if labels hidden */}
                         {!showLabels && (
                           <Html position={[0, 0, poi.position[2] * exaggeration]} center>
                              <div 
@@ -174,7 +170,7 @@ const TerrainView: React.FC = () => {
     const [wireframe, setWireframe] = useState(false);
     const [heatmap, setHeatmap] = useState(false);
     const [showLabels, setShowLabels] = useState(true);
-    const [exaggeration, setExaggeration] = useState(1.0);
+    const [exaggeration, setExaggeration] = useState(1.5);
     const [selectedPoi, setSelectedPoi] = useState<Poi | null>(null);
 
     const [aiState, setAiState] = useState<AiResponse>({
@@ -210,19 +206,20 @@ const TerrainView: React.FC = () => {
         }
     };
 
-    // Auto-trigger analysis when a new POI is selected
     useEffect(() => {
         if (selectedPoi) {
             handleAnalyze(selectedPoi);
         } else {
-            // Reset AI state when no POI is selected
             setAiState({ markdown: '', loading: false, isThinking: false });
         }
     }, [selectedPoi?.id]);
 
+    const handleResetScale = () => {
+        setExaggeration(1.0);
+    };
+
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 h-full overflow-hidden">
-            {/* 3D Canvas Area */}
             <div className="lg:col-span-2 relative h-[50vh] lg:h-full bg-sentinel-900">
                 <Canvas camera={{ position: [0, -25, 20], fov: 40 }}>
                     <Suspense fallback={<Html center><span className="text-white text-xs font-mono animate-pulse uppercase tracking-widest">Compiling 3D Mesh...</span></Html>}>
@@ -248,7 +245,6 @@ const TerrainView: React.FC = () => {
                     </Suspense>
                 </Canvas>
 
-                {/* Compass HUD */}
                 <div className="absolute top-6 left-6 pointer-events-none">
                     <div className="w-12 h-12 rounded-full border border-white/10 flex items-center justify-center relative bg-sentinel-900/50 backdrop-blur-sm">
                         <div className="absolute top-1 text-[8px] font-bold text-sky-400">N</div>
@@ -259,9 +255,8 @@ const TerrainView: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Overlay Controls */}
                 <div className="absolute bottom-6 left-6 right-6 flex flex-wrap gap-4 items-end pointer-events-none">
-                     <div className="bg-sentinel-900/95 backdrop-blur-xl p-5 rounded-2xl border border-white/10 pointer-events-auto shadow-2xl flex flex-col gap-5 min-w-[260px]">
+                     <div className="bg-sentinel-900/95 backdrop-blur-xl p-5 rounded-2xl border border-white/10 pointer-events-auto shadow-2xl flex flex-col gap-5 min-w-[280px]">
                          <div className="flex justify-between items-center border-b border-white/5 pb-3">
                             <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
                                 <IconLayers className="w-4 h-4 text-sky-400" />
@@ -295,29 +290,37 @@ const TerrainView: React.FC = () => {
 
                          <div>
                              <div className="flex justify-between items-center mb-2">
-                                <span className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">Vertical Scale</span>
-                                <span className="text-[10px] font-mono text-sky-400 font-bold bg-sky-400/10 px-1.5 py-0.5 rounded border border-sky-400/20">x{exaggeration.toFixed(1)}</span>
+                                <span className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">Vertical Exaggeration</span>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[10px] font-mono text-sky-400 font-bold bg-sky-400/10 px-1.5 py-0.5 rounded border border-sky-400/20">x{exaggeration.toFixed(1)}</span>
+                                    <button 
+                                        onClick={handleResetScale}
+                                        title="Reset to 1.0x"
+                                        className="p-1 hover:bg-sentinel-700 rounded transition-colors text-slate-500 hover:text-white"
+                                    >
+                                        <IconHistory className="w-3 h-3" />
+                                    </button>
+                                </div>
                              </div>
                              <input 
-                                type="range" min="0.5" max="2.5" step="0.1"
+                                type="range" min="0.1" max="4.0" step="0.1"
                                 value={exaggeration} 
                                 onChange={(e) => setExaggeration(Number(e.target.value))}
-                                className="w-full h-1.5 bg-sentinel-800 rounded-lg appearance-none cursor-pointer accent-sky-500"
+                                className="w-full h-1.5 bg-sentinel-800 rounded-lg appearance-none cursor-pointer accent-sky-500 shadow-[0_0_10px_rgba(14,165,233,0.2)]"
                              />
                              <div className="flex justify-between mt-1.5">
-                                <span className="text-[8px] text-slate-600 font-bold">SMOOTH</span>
-                                <span className="text-[8px] text-slate-600 font-bold">RUGGED</span>
+                                <span className="text-[8px] text-slate-600 font-bold">FLAT</span>
+                                <span className="text-[8px] text-slate-600 font-bold">MAX RELIEF</span>
                              </div>
                          </div>
                      </div>
 
                      <div className="bg-sentinel-900/80 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 pointer-events-auto ml-auto text-[10px] text-slate-500 font-mono tracking-tighter shadow-xl">
-                        FPS: 60 | TRIS: 32.7k | ZOOM: {Math.round(100/exaggeration)}%
+                        FPS: 60 | TRIS: 32.7k | SCALE: {exaggeration.toFixed(1)}x
                      </div>
                 </div>
             </div>
 
-            {/* Analysis Panel Sidebar */}
             <div className="lg:col-span-1 h-[50vh] lg:h-full overflow-hidden border-l border-sentinel-800 bg-sentinel-900 flex flex-col">
                 <div className="p-6 bg-sentinel-950/50 border-b border-sentinel-800 flex items-center justify-between">
                     <div>

@@ -1,3 +1,4 @@
+
 import { GoogleGenAI } from "@google/genai";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -55,7 +56,6 @@ export const generateStandardInsight = async (prompt: string): Promise<string> =
 
 export const generateDeepThinkingInsight = async (prompt: string): Promise<string> => {
   try {
-    // Using gemini-3-pro-preview for complex reasoning with high thinking budget
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
       contents: prompt,
@@ -70,5 +70,33 @@ export const generateDeepThinkingInsight = async (prompt: string): Promise<strin
   } catch (error) {
     console.error("Gemini Thinking Error:", error);
     return "Error generating deep insight. Please check API Key.";
+  }
+};
+
+export const generateMultimodalInsight = async (prompt: string, fileData?: { data: string, mimeType: string }): Promise<string> => {
+  try {
+    const parts: any[] = [{ text: prompt }];
+    if (fileData) {
+      // Data arrives as base64 string including header, need to strip header
+      const base64Data = fileData.data.includes(',') ? fileData.data.split(',')[1] : fileData.data;
+      parts.push({
+        inlineData: {
+          data: base64Data,
+          mimeType: fileData.mimeType
+        }
+      });
+    }
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: { parts },
+      config: {
+        systemInstruction: SYSTEM_INSTRUCTION,
+      }
+    });
+    return response.text || "No analysis available.";
+  } catch (error) {
+    console.error("Gemini Multimodal Error:", error);
+    return "Error generating multimodal insight. The file type may not be supported or is too large.";
   }
 };
